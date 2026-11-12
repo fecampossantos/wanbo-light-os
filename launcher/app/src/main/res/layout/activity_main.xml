@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WanboLightOS Main Activity Layout.
+  Apple TV tvOS styled launcher interface for Wanbo T2 Max projector.
+  Includes Top Bar with hardware controls, Top Shelf Hero Area with elegant clock,
+  and a horizontal floating cards favorites dock.
+  Zero emojis strictly enforced across all elements.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mainRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Top Bar: Title, Hardware Quick Shortcuts, Wi-Fi Indicator, Minimal Clock -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:letterSpacing="0.05"
+            android:text="WanboOS"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <!-- HDMI Video Input Quick Button -->
+        <ImageButton
+            android:id="@+id/btnHdmi"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_button_quick"
+            android:contentDescription="@null"
+            android:focusable="true"
+            android:src="@drawable/ic_hdmi" />
+
+        <!-- Keystone / Trapezoid Calibration Quick Button -->
+        <ImageButton
+            android:id="@+id/btnKeystone"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_button_quick"
+            android:contentDescription="@null"
+            android:focusable="true"
+            android:src="@drawable/ic_trapezoid_calibrate" />
+
+        <!-- System Settings Quick Button -->
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_button_quick"
+            android:contentDescription="@null"
+            android:focusable="true"
+            android:src="@drawable/ic_settings" />
+
+        <!-- Wi-Fi Status Indicator -->
+        <ImageView
+            android:id="@+id/ivWifi"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="16dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_wifi" />
+
+        <!-- Minimal Top Bar Clock -->
+        <TextClock
+            android:id="@+id/clockTopBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:format12Hour="hh:mm a"
+            android:format24Hour="HH:mm"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+    <!-- Top Shelf Hero Area (140dp height, subtle gradient, elegant clock, subtitle) -->
+    <LinearLayout
+        android:id="@+id/topShelf"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/bg_top_shelf"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextClock
+            android:id="@+id/clockHero"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-thin"
+            android:format12Hour="hh:mm"
+            android:format24Hour="HH:mm"
+            android:textColor="@color/text_primary"
+            android:textSize="48sp" />
+
+        <TextView
+            android:id="@+id/tvHeroSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:letterSpacing="0.05"
+            android:text="WanboLightOS • Modo Seguro • Zero Telemetria"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+
+    <!-- Favorites Section Label: "FAVORITOS" (letterSpacing 0.1, bold, uppercase) -->
+    <TextView
+        android:id="@+id/tvFavoritesLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:letterSpacing="0.1"
+        android:text="FAVORITOS"
+        android:textAllCaps="true"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- Horizontal RecyclerView for tvOS Floating Cards Dock -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvFavorites"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:descendantFocusability="afterDescendants"
+        android:focusable="true"
+        android:orientation="horizontal" />
+
+</LinearLayout>
