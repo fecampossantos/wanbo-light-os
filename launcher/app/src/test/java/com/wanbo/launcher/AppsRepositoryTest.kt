@@ -246,4 +246,38 @@ class AppsRepositoryTest {
         assertFalse("AppItem.kt must NOT contain any emojis", containsEmoji(modelFile.readText()))
         assertFalse("AppsRepository.kt must NOT contain any emojis", containsEmoji(repoFile.readText()))
     }
+
+    /**
+     * Verifies that AppsRepository incorporates defensive resource resolution,
+     * filters disabled components/applications, and eliminates invalid ResolveInfo.loadBanner references.
+     */
+    @Test
+    fun testDefensiveResourceResolutionAndDisabledComponentFiltering() {
+        val repoFile = resolveFile("src/main/java/com/wanbo/launcher/data/AppsRepository.kt")
+        assertTrue("AppsRepository.kt must exist", repoFile.exists())
+        val content = repoFile.readText()
+
+        assertFalse("AppsRepository must NOT call info.loadBanner", content.contains("info.loadBanner"))
+        assertTrue(
+            "AppsRepository must resolve banner via activityInfo or applicationInfo",
+            content.contains("activityInfo.loadBanner(pm) ?: activityInfo.applicationInfo?.loadBanner(pm)")
+        )
+        assertTrue(
+            "AppsRepository must filter disabled activities and applications",
+            content.contains("!activityInfo.isEnabled || (appInfo != null && !appInfo.enabled)")
+        )
+        assertTrue(
+            "AppsRepository must catch resource exceptions when loading labels",
+            content.contains("val label = try {")
+        )
+        assertTrue(
+            "AppsRepository must catch resource exceptions when loading icons",
+            content.contains("val icon = try {")
+        )
+        assertTrue(
+            "AppsRepository must catch resource exceptions when loading banners",
+            content.contains("val banner = try {")
+        )
+    }
 }
+

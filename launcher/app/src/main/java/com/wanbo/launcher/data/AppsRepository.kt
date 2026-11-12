@@ -69,8 +69,19 @@ class AppsRepository(
         val appList = mutableListOf<AppItem>()
         val seenPackages = mutableSetOf<String>()
 
+        /**
+         * Resolves and extracts package details from a [ResolveInfo], filtering disabled
+         * components, handling resource exceptions defensively, and adding valid apps to [appList].
+         *
+         * @param info The resolve information for an activity.
+         */
         fun processResolveInfo(info: ResolveInfo) {
             val activityInfo = info.activityInfo ?: return
+            val appInfo = activityInfo.applicationInfo
+            if (!activityInfo.isEnabled || (appInfo != null && !appInfo.enabled)) {
+                return
+            }
+
             val pkg = activityInfo.packageName ?: return
 
             // Exclude empty packages, launcher self package, and already processed apps
@@ -80,13 +91,26 @@ class AppsRepository(
 
             seenPackages.add(pkg)
 
-            val label = info.loadLabel(pm)?.toString()?.trim()
-                ?.takeIf { it.isNotEmpty() }
-                ?: activityInfo.loadLabel(pm)?.toString()?.trim()
-                ?: pkg
+            val label = try {
+                info.loadLabel(pm)?.toString()?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: activityInfo.loadLabel(pm)?.toString()?.trim()
+                    ?: pkg
+            } catch (e: Exception) {
+                pkg
+            }
 
-            val icon = info.loadIcon(pm) ?: activityInfo.loadIcon(pm)
-            val banner = activityInfo.loadBanner(pm) ?: info.loadBanner(pm)
+            val icon = try {
+                info.loadIcon(pm) ?: activityInfo.loadIcon(pm)
+            } catch (e: Exception) {
+                null
+            }
+
+            val banner = try {
+                activityInfo.loadBanner(pm) ?: activityInfo.applicationInfo?.loadBanner(pm)
+            } catch (e: Exception) {
+                null
+            }
 
             appList.add(
                 AppItem(
