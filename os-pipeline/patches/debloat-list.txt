@@ -1,0 +1,72 @@
+# WanboLightOS System Debloat Specification
+# Target: Wanbo T2 Max Smart Projector (Android 9 Pie, API 28)
+# Purges advertising bloatware, demos, test suites, fake cleaners, and unused daemons.
+# Critical hardware drivers, HALs, and projector inputs MUST NEVER be added to this list.
+
+# ==============================================================================
+# 1. Zeasn / Whale Advertising Suite & Telemetry
+# ==============================================================================
+system/app/TV_OPEN_LAUNCHER_WHALE-zvt_mtk9255_p_prod
+system/app/TV_OPEN_LAUNCHER_WHALE*
+system/app/Zeasn*
+system/priv-app/Zeasn*
+system/app/com.zeasn.*
+system/app/zeasn.open.*
+system/app/com.zvt.*
+system/priv-app/com.zeasn.*
+app/TV_OPEN_LAUNCHER_WHALE-zvt_mtk9255_p_prod
+app/TV_OPEN_LAUNCHER_WHALE*
+app/Zeasn*
+priv-app/Zeasn*
+app/com.zeasn.*
+app/zeasn.open.*
+app/com.zvt.*
+priv-app/com.zeasn.*
+
+# ==============================================================================
+# 2. Demos & Factory Internal Test Suites
+# ==============================================================================
+system/app/fusion.android.tv.demo
+system/app/com.mstar.android.media.tests
+system/priv-app/mediatek.factorymenu.ui
+system/priv-app/MtkFactoryMenu
+system/app/LiveTVSetupWizard
+system/app/WFDSinkTest
+app/fusion.android.tv.demo
+app/com.mstar.android.media.tests
+priv-app/mediatek.factorymenu.ui
+priv-app/MtkFactoryMenu
+app/LiveTVSetupWizard
+app/WFDSinkTest
+
+# ==============================================================================
+# 3. Fake Cleaners, Optimizers & Task Killers
+# ==============================================================================
+system/app/MemoryClean
+system/app/CleanCacheUtil
+system/app/com.memoryclean.chijimlee
+system/app/com.chijimlee.cleancacheutil
+app/MemoryClean
+app/CleanCacheUtil
+app/com.memoryclean.chijimlee
+app/com.chijimlee.cleancacheutil
+
+# ==============================================================================
+# 4. Unnecessary Android Daemons for Projectors
+# ==============================================================================
+system/app/PrintSpooler
+system/priv-app/PrintSpooler
+system/app/Browser
+system/app/GoogleContactsSyncAdapter
+system/app/CalendarProvider
+system/priv-app/CalendarProvider
+system/app/ContactsProvider
+system/priv-app/ContactsProvider
+app/PrintSpooler
+priv-app/PrintSpooler
+app/Browser
+app/GoogleContactsSyncAdapter
+app/CalendarProvider
+priv-app/CalendarProvider
+app/ContactsProvider
+priv-app/ContactsProvider

@@ -1,0 +1,26 @@
+# ==============================================================================
+# WanboLightOS Memory & Low-RAM Optimizations
+# Target: Wanbo T2 Max Smart Projector (~843 MB RAM usable)
+# ==============================================================================
+
+# Low Memory Configuration
+ro.config.low_ram=true
+ro.lmk.low=1001
+ro.lmk.medium=800
+ro.lmk.critical=0
+
+# Dalvik VM Tuning for 843 MB RAM
+dalvik.vm.heapstartsize=8m
+dalvik.vm.heapgrowthlimit=64m
+dalvik.vm.heapsize=128m
+dalvik.vm.heaptargetutilization=0.75
+dalvik.vm.heapminfree=512k
+dalvik.vm.heapmaxfree=2m
+
+# GPU & UI Hardware Acceleration
+debug.sf.hw=1
+video.accelerate.hw=1
+ro.hwui.renderer=opengl
+
+# ZRAM LZ4 Swap Configuration
+ro.zram.mark_idle_delay_mins=60
