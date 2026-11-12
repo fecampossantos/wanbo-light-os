@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <!-- Dark background backdrop -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M0,0 h320 v180 h-320 z" />
+    <!-- Outer light beam cone -->
+    <path
+        android:fillColor="#1AFFFFFF"
+        android:pathData="M100,70 L290,25 L290,155 L100,110 Z" />
+    <!-- Inner bright light beam cone -->
+    <path
+        android:fillColor="#15FFFFFF"
+        android:pathData="M100,78 L290,48 L290,132 L100,102 Z" />
+    <!-- Projector body -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M48,65 h44 a8,8 0 0 1 8,8 v34 a8,8 0 0 1 -8,8 h-44 a8,8 0 0 1 -8,-8 v-34 a8,8 0 0 1 8,-8 z" />
+    <!-- Projector lens cutout -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M82,90 m-11,0 a11,11 0 1 0 22,0 a11,11 0 1 0 -22,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M82,90 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0" />
+    <!-- Projector vents -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M46,75 h4 v30 h-4 z M54,75 h4 v30 h-4 z" />
+    <!-- Projector status LED -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M66,74 m-2,0 a2,2 0 1 0 4,0 a2,2 0 1 0 -4,0" />
+    <!-- Minimalist geometric Wanbo 'W' logo mark -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M150,74 L162,106 L172,82 L182,106 L194,74 L188,74 L179,98 L172,80 L165,98 L156,74 Z" />
+    <!-- Minimalist geometric 'O' -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M214,74 c-8.84,0 -16,7.16 -16,16 s7.16,16 16,16 s16,-7.16 16,-16 S222.84,74 214,74 z M214,80 c5.52,0 10,4.48 10,10 s-4.48,10 -10,10 s-10,-4.48 -10,-10 S208.48,80 214,80 z" />
+    <!-- Minimalist geometric 'S' -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M252,80 h-10 c-1.1,0 -2,0.9 -2,2 v3 c0,1.1 0.9,2 2,2 h8 c3.31,0 6,2.69 6,6 v5 c0,4.42 -3.58,8 -8,8 h-10 v-6 h10 c1.1,0 2,-0.9 2,-2 v-5 c0,-1.1 -0.9,-2 -2,-2 h-8 c-3.31,0 -6,-2.69 -6,-6 v-3 c0,-4.42 3.58,-8 8,-8 h10 v6 z" />
+</vector>

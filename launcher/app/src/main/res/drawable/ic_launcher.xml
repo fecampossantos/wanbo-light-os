@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dark rounded background -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M20,10 h68 a10,10 0 0 1 10,10 v68 a10,10 0 0 1 -10,10 h-68 a10,10 0 0 1 -10,-10 v-68 a10,10 0 0 1 10,-10 z" />
+    <!-- Projection light cone -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M56,44 L86,28 L86,80 L56,64 Z" />
+    <!-- Projector body -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M22,40 h34 a4,4 0 0 1 4,4 v24 a4,4 0 0 1 -4,4 h-34 a4,4 0 0 1 -4,-4 v-24 a4,4 0 0 1 4,-4 z" />
+    <!-- Projector lens aperture -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M44,52 m-7,0 a7,7 0 1 0 14,0 a7,7 0 1 0 -14,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M44,52 m-3,0 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0" />
+    <!-- Projector cooling vents -->
+    <path
+        android:fillColor="#0E0E12"
+        android:pathData="M25,46 h3 v16 h-3 z M30,46 h3 v16 h-3 z" />
+</vector>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      WanboLightOS Leanback TV Theme.
+      Inherits from Theme.Leanback with a dark background and zero action bar
+      for a sleek, immersive projector home screen experience.
+    -->
+    <style name="Theme.WanboLauncher" parent="Theme.Leanback">
+        <item name="android:windowBackground">#0A0A0E</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:colorBackground">#0A0A0E</item>
+    </style>
+</resources>
