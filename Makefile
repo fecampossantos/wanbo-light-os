@@ -12,6 +12,8 @@ INPUT_FW ?= stock_firmware.bin
 OUTPUT_FW ?= WanboLightOS_v1.0.bin
 EXTRA_ARGS ?=
 
+all: help
+
 help:
 	@echo "WanboLightOS Build System"
 	@echo ""

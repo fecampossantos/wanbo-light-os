@@ -279,10 +279,10 @@ def find_matching_debloat_targets(system_root: Path, patterns: List[str]) -> Lis
 
         if matched:
             # Step 6: Verify candidate against hardware safety blacklist
-            cand_str = str(candidate).replace("\\", "/")
-            if is_blacklisted(cand_str):
+            # Pass rel_path or candidate.name to avoid false positives from host filesystem path
+            if is_blacklisted(rel_path) or is_blacklisted(candidate.name):
                 raise CriticalHardwareSafetyViolation(
-                    f"CRITICAL SAFETY VIOLATION: Candidate deletion target matches hardware blacklist: '{cand_str}'"
+                    f"CRITICAL SAFETY VIOLATION: Candidate deletion target matches hardware blacklist: '{rel_path}'"
                 )
             matched_paths.add(candidate)
 
@@ -442,7 +442,11 @@ def unpack_mstar_binary(input_fw: Path, unpack_dir: Path, dry_run: bool = False,
     # Check for mstar-bin-tool unpack script or executable
     unpack_tool = shutil.which("unpack.py") or shutil.which("mstar-bin-tool")
     if unpack_tool:
-        cmd = [unpack_tool, str(input_fw), str(unpack_dir)]
+        tool_str = str(unpack_tool)
+        if tool_str.lower().endswith(".py"):
+            cmd = [sys.executable, tool_str, str(input_fw), str(unpack_dir)]
+        else:
+            cmd = [tool_str, str(input_fw), str(unpack_dir)]
         log_info(f"Running unpack command: {' '.join(cmd)}", verbose)
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
@@ -623,7 +627,9 @@ def patch_build_prop(
     verbose: bool = False,
 ) -> Path:
     """
-    Executes Step 8: Appends build.prop.patch to system/build.prop.
+    Executes Step 8: Patches system/build.prop with patch entries.
+    Replaces existing keys in-place to avoid write-once conflicts on ro.* properties,
+    and appends newly introduced properties.
 
     @param {Path} system_root - Extracted system filesystem root directory.
     @param {Path} patch_file - Path to build.prop.patch.
@@ -631,7 +637,7 @@ def patch_build_prop(
     @param {bool} verbose - True for detailed debug logging.
     @returns {Path} Path to patched build.prop file.
     """
-    log_info("Step 8/9: Appending build.prop.patch to system/build.prop...", verbose)
+    log_info("Step 8/9: Patching system/build.prop with low-RAM optimizations...", verbose)
 
     if not patch_file.exists():
         raise FileNotFoundError(f"Patch file not found: {patch_file}")
@@ -657,33 +663,162 @@ def patch_build_prop(
             target_build_prop.write_text("# Stock build.prop\n", encoding="utf-8")
 
     if dry_run:
-        log_info(f"[DRY-RUN] Simulated append of {patch_file.name} to {target_build_prop}", verbose)
+        log_info(f"[DRY-RUN] Simulated patch of {patch_file.name} to {target_build_prop}", verbose)
         return target_build_prop
 
     existing_content = ""
     if target_build_prop.exists():
         existing_content = target_build_prop.read_text(encoding="utf-8")
 
-    separator = "\n" if not existing_content.endswith("\n") else ""
-    appended_content = (
-        existing_content
-        + separator
-        + "\n# ==============================================================================\n"
-        + "# WanboLightOS Automated Injection Patch\n"
-        + "# ==============================================================================\n"
-        + patch_content.strip()
-        + "\n"
-    )
+    # Parse key-value mappings from patch file
+    patch_props: Dict[str, str] = {}
+    for line in patch_content.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, val = stripped.split("=", 1)
+            patch_props[key.strip()] = val.strip()
 
-    target_build_prop.write_text(appended_content, encoding="utf-8")
+    # Process existing lines, replacing existing keys in-place
+    new_lines: List[str] = []
+    replaced_keys: Set[str] = set()
+
+    for line in existing_content.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, _ = stripped.split("=", 1)
+            clean_key = key.strip()
+            if clean_key in patch_props:
+                if clean_key not in replaced_keys:
+                    new_lines.append(f"{clean_key}={patch_props[clean_key]}")
+                    replaced_keys.add(clean_key)
+                continue
+        new_lines.append(line)
+
+    # Determine remaining patch lines to append (keys not already replaced in-place)
+    remaining_lines: List[str] = []
+    for line in patch_content.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, _ = stripped.split("=", 1)
+            if key.strip() in replaced_keys:
+                continue
+        remaining_lines.append(line)
+
+    base_text = "\n".join(new_lines).rstrip()
+    remaining_text = "\n".join(remaining_lines).strip()
+
+    if remaining_text:
+        separator = "\n\n" if base_text else ""
+        final_content = (
+            base_text
+            + separator
+            + "# ==============================================================================\n"
+            + "# WanboLightOS Automated Injection Patch\n"
+            + "# ==============================================================================\n"
+            + remaining_text
+            + "\n"
+        )
+    else:
+        final_content = base_text + "\n"
+
+    target_build_prop.write_text(final_content, encoding="utf-8")
     try:
         os.chmod(target_build_prop, 0o644)
     except OSError:
         pass
 
-    log_info(f"Appended {patch_file.name} to {target_build_prop} (mode 0644)", verbose)
+    log_info(f"Patched {patch_file.name} to {target_build_prop} (mode 0644)", verbose)
     log_info("Step 8/9 complete: build.prop patched successfully.", verbose)
     return target_build_prop
+
+
+def repack_system_image(
+    system_extract_dir: Path,
+    system_raw_output: Path,
+    dry_run: bool = False,
+    verbose: bool = False,
+) -> Path:
+    """
+    Executes raw ext4 filesystem repacking from extracted system directory tree.
+    Rebuilds system_raw.img using make_ext4fs or mke2fs + e2fsdroid before sparse conversion.
+
+    @param {Path} system_extract_dir - Directory containing extracted and modified system files.
+    @param {Path} system_raw_output - Destination path for rebuilt raw ext4 image.
+    @param {bool} dry_run - True to simulate repacking without executing external host tools.
+    @param {bool} verbose - True for detailed debug logging.
+    @returns {Path} Path to repacked raw ext4 image.
+    """
+    log_info("Step 8b/9: Repacking extracted system filesystem into raw ext4 image...", verbose)
+
+    if dry_run:
+        log_info(
+            f"[DRY-RUN] Simulated ext4 filesystem repack of {system_extract_dir} -> {system_raw_output.name}",
+            verbose,
+        )
+        system_raw_output.write_bytes(b"MOCK_REPACKED_RAW_EXT4_DATA")
+        return system_raw_output
+
+    partition_size = 1073741824
+    if system_raw_output.exists():
+        existing_size = system_raw_output.stat().st_size
+        if existing_size > 0:
+            partition_size = existing_size
+
+    make_ext4fs_tool = shutil.which("make_ext4fs")
+    mke2fs_tool = shutil.which("mke2fs")
+    e2fsdroid_tool = shutil.which("e2fsdroid")
+
+    if make_ext4fs_tool:
+        cmd = [
+            make_ext4fs_tool,
+            "-l",
+            str(partition_size),
+            "-a",
+            "system",
+            str(system_raw_output),
+            str(system_extract_dir),
+        ]
+        log_info(f"Running make_ext4fs: {' '.join(cmd)}", verbose)
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise PipelineStepError(f"make_ext4fs repacking failed: {res.stderr}")
+    elif mke2fs_tool and e2fsdroid_tool:
+        blocks = partition_size // 4096
+        cmd_mke2fs = [
+            mke2fs_tool,
+            "-t",
+            "ext4",
+            "-b",
+            "4096",
+            str(system_raw_output),
+            str(blocks),
+        ]
+        log_info(f"Running mke2fs: {' '.join(cmd_mke2fs)}", verbose)
+        res_mk = subprocess.run(cmd_mke2fs, capture_output=True, text=True)
+        if res_mk.returncode != 0:
+            raise PipelineStepError(f"mke2fs failed: {res_mk.stderr}")
+
+        cmd_e2fs = [
+            e2fsdroid_tool,
+            "-e",
+            "-a",
+            "/system",
+            "-f",
+            str(system_extract_dir),
+            str(system_raw_output),
+        ]
+        log_info(f"Running e2fsdroid: {' '.join(cmd_e2fs)}", verbose)
+        res_e2fs = subprocess.run(cmd_e2fs, capture_output=True, text=True)
+        if res_e2fs.returncode != 0:
+            raise PipelineStepError(f"e2fsdroid failed: {res_e2fs.stderr}")
+    else:
+        raise PipelineStepError(
+            "No suitable ext4 repacking tool found in PATH (make_ext4fs or mke2fs+e2fsdroid). "
+            "Cannot repack raw ext4 system image."
+        )
+
+    log_info("Ext4 filesystem repacked successfully.", verbose)
+    return system_raw_output
 
 
 def convert_raw_to_sparse(raw_img: Path, sparse_img: Path, dry_run: bool = False, verbose: bool = False) -> Path:
@@ -736,7 +871,11 @@ def repack_mstar_binary(unpacked_dir: Path, output_fw: Path, dry_run: bool = Fal
 
     pack_tool = shutil.which("pack.py") or shutil.which("mstar-bin-tool")
     if pack_tool:
-        cmd = [pack_tool, str(unpacked_dir), str(output_fw)]
+        tool_str = str(pack_tool)
+        if tool_str.lower().endswith(".py"):
+            cmd = [sys.executable, tool_str, str(unpacked_dir), str(output_fw)]
+        else:
+            cmd = [tool_str, str(unpacked_dir), str(output_fw)]
         log_info(f"Running: {' '.join(cmd)}", verbose)
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
@@ -796,6 +935,9 @@ def run_pipeline(config: BuildConfiguration) -> int:
 
         # Step 8: Patch build.prop
         patch_build_prop(system_extract_dir, config.build_prop_patch, dry_run=config.dry_run, verbose=config.verbose)
+
+        # Repack modified filesystem into raw ext4 image before sparse conversion
+        repack_system_image(system_extract_dir, system_raw, dry_run=config.dry_run, verbose=config.verbose)
 
         # Step 9: Re-convert to sparse and repack final binary
         new_sparse = unpacked_dir / "system.img"

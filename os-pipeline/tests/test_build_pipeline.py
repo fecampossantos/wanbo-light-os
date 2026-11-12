@@ -10,8 +10,10 @@ import shutil
 import sys
 import tempfile
 import unittest
+import subprocess
 from pathlib import Path
 from typing import List
+from unittest.mock import MagicMock, patch
 
 # Ensure os-pipeline module is accessible
 PIPELINE_DIR = Path(__file__).resolve().parent.parent
@@ -39,6 +41,7 @@ from build_rom import (  # noqa: E402
     parse_debloat_list,
     patch_build_prop,
     repack_mstar_binary,
+    repack_system_image,
     run_pipeline,
     unpack_mstar_binary,
     validate_prerequisites,
@@ -541,6 +544,153 @@ class TestBuildPipeline(unittest.TestCase):
                     )
                 except UnicodeDecodeError:
                     pass  # Non-text binary file
+
+    # ==========================================================================
+    # Group G: Review Findings Fixes Verification
+    # ==========================================================================
+
+    def test_repack_system_image_dry_run(self) -> None:
+        """
+        Validates that repack_system_image executes properly in dry-run mode and outputs simulated raw image.
+
+        @returns {None}
+        """
+        extract_dir = self.temp_dir / "extract_dir"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        (extract_dir / "app").mkdir(parents=True, exist_ok=True)
+
+        raw_output = self.temp_dir / "system_raw.img"
+        res = repack_system_image(extract_dir, raw_output, dry_run=True, verbose=True)
+
+        self.assertEqual(res, raw_output)
+        self.assertTrue(raw_output.exists())
+        self.assertEqual(raw_output.read_bytes(), b"MOCK_REPACKED_RAW_EXT4_DATA")
+
+    def test_build_rom_sh_syntax_and_jsdoc(self) -> None:
+        """
+        Validates that build-rom.sh contains valid bash syntax with all JSDoc lines prefixed with #.
+
+        @returns {None}
+        """
+        script_path = self.repo_root / "os-pipeline" / "build-rom.sh"
+        self.assertTrue(script_path.exists())
+        lines = script_path.read_text(encoding="utf-8").splitlines()
+
+        for idx, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            self.assertFalse(
+                stripped.startswith("/**") or stripped.startswith("*/") or (stripped.startswith("*") and not stripped.startswith("*=")),
+                f"Line {idx} in build-rom.sh contains un-prefixed JSDoc comment: {line}",
+            )
+
+        bash_tool = shutil.which("bash")
+        if bash_tool:
+            res_syntax = subprocess.run([bash_tool, "-n", str(script_path)], capture_output=True, text=True)
+            self.assertEqual(res_syntax.returncode, 0, f"bash -n syntax check failed: {res_syntax.stderr}")
+
+            res_help = subprocess.run([bash_tool, str(script_path), "-h"], capture_output=True, text=True)
+            self.assertEqual(res_help.returncode, 0, f"bash -h failed: {res_help.stderr}")
+            self.assertIn("Usage:", res_help.stdout)
+
+    def test_mstar_tools_invoke_via_sys_executable_for_python(self) -> None:
+        """
+        Validates that unpack_mstar_binary and repack_mstar_binary invoke python tools via sys.executable.
+
+        @returns {None}
+        """
+        input_fw = self.temp_dir / "stock.bin"
+        input_fw.write_bytes(b"DATA")
+        unpack_dir = self.temp_dir / "unpack"
+        unpack_dir.mkdir(parents=True, exist_ok=True)
+        output_fw = self.temp_dir / "out.bin"
+
+        with patch("shutil.which", return_value="C:/tools/unpack.py"), \
+             patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stderr="", stdout="")
+            unpack_mstar_binary(input_fw, unpack_dir, dry_run=False, verbose=False)
+            mock_run.assert_called_once()
+            cmd_called = mock_run.call_args[0][0]
+            self.assertEqual(cmd_called[0], sys.executable)
+            self.assertEqual(cmd_called[1], "C:/tools/unpack.py")
+
+        with patch("shutil.which", return_value="/usr/bin/pack.py"), \
+             patch("subprocess.run") as mock_run_pack:
+            mock_run_pack.return_value = MagicMock(returncode=0, stderr="", stdout="")
+            repack_mstar_binary(unpack_dir, output_fw, dry_run=False, verbose=False)
+            mock_run_pack.assert_called_once()
+            cmd_called_pack = mock_run_pack.call_args[0][0]
+            self.assertEqual(cmd_called_pack[0], sys.executable)
+            self.assertEqual(cmd_called_pack[1], "/usr/bin/pack.py")
+
+    def test_find_matching_debloat_targets_ignores_host_directory_blacklist_substrings(self) -> None:
+        """
+        Validates that host directory path containing blacklist keyword does not cause false positives.
+
+        @returns {None}
+        """
+        host_dir_with_blacklist = self.temp_dir / "host_trapezoid_workspace" / "sys_extract"
+        host_dir_with_blacklist.mkdir(parents=True, exist_ok=True)
+
+        clean_cache_dir = host_dir_with_blacklist / "system" / "app" / "CleanCacheUtil"
+        clean_cache_dir.mkdir(parents=True, exist_ok=True)
+        (clean_cache_dir / "clean.apk").write_bytes(b"BLOAT")
+
+        patterns = ["system/app/CleanCacheUtil*"]
+        targets = find_matching_debloat_targets(host_dir_with_blacklist, patterns)
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0].name, "CleanCacheUtil")
+
+        bad_dir = host_dir_with_blacklist / "system" / "priv-app" / "trapezoidServer"
+        bad_dir.mkdir(parents=True, exist_ok=True)
+        dangerous_patterns = ["system/priv-app/*"]
+        with self.assertRaises(CriticalHardwareSafetyViolation):
+            find_matching_debloat_targets(host_dir_with_blacklist, dangerous_patterns)
+
+    def test_patch_build_prop_replaces_existing_keys_in_place(self) -> None:
+        """
+        Validates that patch_build_prop replaces existing properties in-place without duplicating keys.
+
+        @returns {None}
+        """
+        system_root = self.temp_dir / "sys_prop_replace"
+        prop_dir = system_root / "system"
+        prop_dir.mkdir(parents=True, exist_ok=True)
+        build_prop = prop_dir / "build.prop"
+
+        original_content = (
+            "# Stock properties\n"
+            "ro.product.model=Wanbo T2 Max\n"
+            "ro.config.low_ram=false\n"
+            "dalvik.vm.heapgrowthlimit=128m\n"
+            "ro.build.version.release=9\n"
+        )
+        build_prop.write_text(original_content, encoding="utf-8")
+
+        patch_build_prop(system_root, self.build_prop_file, dry_run=False)
+        content = build_prop.read_text(encoding="utf-8")
+
+        self.assertIn("ro.config.low_ram=true", content)
+        self.assertNotIn("ro.config.low_ram=false", content)
+        self.assertEqual(content.count("ro.config.low_ram="), 1)
+
+        self.assertIn("dalvik.vm.heapgrowthlimit=64m", content)
+        self.assertNotIn("dalvik.vm.heapgrowthlimit=128m", content)
+        self.assertEqual(content.count("dalvik.vm.heapgrowthlimit="), 1)
+
+        self.assertIn("ro.product.model=Wanbo T2 Max", content)
+        self.assertIn("ro.build.version.release=9", content)
+        self.assertIn("ro.zram.mark_idle_delay_mins=60", content)
+
+    def test_makefile_has_all_help_target(self) -> None:
+        """
+        Validates that Makefile defines the 'all: help' target.
+
+        @returns {None}
+        """
+        makefile_path = self.repo_root / "Makefile"
+        self.assertTrue(makefile_path.exists())
+        text = makefile_path.read_text(encoding="utf-8")
+        self.assertIn("all: help", text)
 
 
 def main() -> int:

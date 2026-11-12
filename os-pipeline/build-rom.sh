@@ -10,12 +10,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BUILD_PY="${SCRIPT_DIR}/build_rom.py"
 
-/**
- * Displays command usage instructions and exits.
- *
- * @param {string} program_name - The executable invocation name.
- * @returns {void}
- */
+# /**
+#  * Displays command usage instructions and exits.
+#  *
+#  * @param {string} program_name - The executable invocation name.
+#  * @returns {void}
+#  */
 show_help() {
     echo "Usage: $0 <input_fw.bin> [output_fw.bin] [options]"
     echo ""
@@ -39,11 +39,11 @@ show_help() {
     echo "  $0 stock_firmware.bin --dry-run"
 }
 
-/**
- * Validates Python 3 interpreter availability.
- *
- * @returns {string} Path to Python 3 interpreter.
- */
+# /**
+#  * Validates Python 3 interpreter availability.
+#  *
+#  * @returns {string} Path to Python 3 interpreter.
+#  */
 detect_python() {
     if command -v python3 >/dev/null 2>&1; then
         echo "python3"
@@ -55,12 +55,12 @@ detect_python() {
     fi
 }
 
-/**
- * Main execution entry point.
- *
- * @param {...string} args - Command-line arguments.
- * @returns {int} Exit code from python build pipeline.
- */
+# /**
+#  * Main execution entry point.
+#  *
+#  * @param {...string} args - Command-line arguments.
+#  * @returns {int} Exit code from python build pipeline.
+#  */
 main() {
     if [[ $# -eq 0 ]]; then
         show_help
