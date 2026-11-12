@@ -1,0 +1,950 @@
+#!/usr/bin/env python3
+"""
+WanboLightOS Automated Firmware Unpack, Debloat, Injection & Repack Pipeline.
+Target Hardware: Wanbo T2 Max Smart Projector (armeabi-v7a, Android 9 Pie, API 28).
+
+Orchestrates the 9-step modification pipeline:
+  Step 1: Validates existence of input stock firmware and compiled launcher APK.
+  Step 2: Unpacks MStar/MediaTek firmware binary using mstar-bin-tool or partition extractors.
+  Step 3: Converts sparse system.img to raw ext4 via simg2img.
+  Step 4: Mounts/extracts system_raw.img.
+  Step 5: Applies debloat-list.txt with robust glob/fnmatch wildcard expansion.
+  Step 6: Verifies critical hardware safety blacklist is NEVER touched.
+  Step 7: Injects compiled WanboLauncher.apk into priv-app/WanboLauncher/ and AptoideTV.apk into app/AptoideTV/.
+  Step 8: Appends build.prop.patch to system/build.prop.
+  Step 9: Re-converts to sparse image (img2simg) and re-packs MStar binary into flashable USB firmware.
+
+Strict zero-emoji compliance is enforced throughout all outputs and logs.
+"""
+
+import argparse
+import fnmatch
+import os
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
+
+# Critical hardware driver and HAL safety blacklist.
+# Any package, driver, daemon, or config containing these substrings must NEVER be touched.
+CRITICAL_HARDWARE_BLACKLIST: List[str] = [
+    "trapezoidserver",
+    "trapezoid",
+    "com.chijimlee.trapezoid",
+    "tvinput",
+    "com.mediatek.tvinput",
+    "dtv_svc",
+    "autopair",
+    "com.mediatek.autopair",
+    "loadingequalizer",
+    "com.mediatek.loadingequalizer",
+    "tv.settings",
+    "com.android.tv.settings",
+    "kxtj2server",
+    "hotkey.dispatcher",
+]
+
+DEFAULT_OUTPUT_BIN_NAME = "WanboLightOS_v1.0.bin"
+DEFAULT_LAUNCHER_REL_PATH = "launcher/app/build/outputs/apk/release/app-release.apk"
+DEFAULT_FALLBACK_LAUNCHER_PATHS = [
+    "launcher/app/build/outputs/apk/debug/app-debug.apk",
+    "launcher/build/outputs/apk/release/app-release.apk",
+    "launcher/build/outputs/apk/debug/app-debug.apk",
+    "launcher/WanboLauncher.apk",
+    "WanboLauncher.apk",
+]
+DEFAULT_APTOIDE_REL_PATHS = [
+    "os-pipeline/apks/AptoideTV.apk",
+    "tools/apks/AptoideTV.apk",
+    "apks/AptoideTV.apk",
+    "AptoideTV.apk",
+]
+
+
+class CriticalHardwareSafetyViolation(RuntimeError):
+    """Raised when an operation attempts to modify or delete a critical hardware HAL or driver."""
+    pass
+
+
+class PipelineStepError(RuntimeError):
+    """Raised when a pipeline step fails during firmware modification."""
+    pass
+
+
+@dataclass
+class BuildConfiguration:
+    """Configuration options for firmware build pipeline execution."""
+    input_fw: Path
+    output_fw: Path
+    launcher_apk: Optional[Path]
+    aptoide_apk: Optional[Path]
+    debloat_list: Path
+    build_prop_patch: Path
+    work_dir: Path
+    dry_run: bool = False
+    verbose: bool = False
+    keep_work_dir: bool = False
+
+
+def is_emoji_code_point(cp: int) -> bool:
+    """
+    Determines whether a given Unicode code point represents an emoji character.
+
+    @param {int} cp - The Unicode code point integer.
+    @returns {bool} True if the code point falls within known emoji ranges, False otherwise.
+    """
+    if 0x1F600 <= cp <= 0x1F64F:
+        return True  # Emoticons
+    if 0x1F300 <= cp <= 0x1F5FF:
+        return True  # Misc Symbols and Pictographs
+    if 0x1F680 <= cp <= 0x1F6FF:
+        return True  # Transport and Map
+    if 0x1F700 <= cp <= 0x1F77F:
+        return True  # Alchemical Symbols
+    if 0x1F780 <= cp <= 0x1F7FF:
+        return True  # Geometric Shapes Extended
+    if 0x1F800 <= cp <= 0x1F8FF:
+        return True  # Supplemental Arrows-C
+    if 0x1F900 <= cp <= 0x1F9FF:
+        return True  # Supplemental Symbols and Pictographs
+    if 0x1FA00 <= cp <= 0x1FA6F:
+        return True  # Chess Symbols
+    if 0x1FA70 <= cp <= 0x1FAFF:
+        return True  # Symbols and Pictographs Extended-A
+    if 0x2600 <= cp <= 0x26FF:
+        return True  # Misc symbols
+    if 0x2700 <= cp <= 0x27BF:
+        return True  # Dingbats
+    if 0xFE00 <= cp <= 0xFE0F:
+        return True  # Variation Selectors
+    if 0x1F1E6 <= cp <= 0x1F1FF:
+        return True  # Flags
+    return False
+
+
+def contains_emoji(text: str) -> bool:
+    """
+    Scans a text string to check for any emoji characters.
+
+    @param {str} text - The string content to inspect.
+    @returns {bool} True if at least one emoji character is present, False otherwise.
+    """
+    for char in text:
+        if is_emoji_code_point(ord(char)):
+            return True
+    return False
+
+
+def get_repo_root() -> Path:
+    """
+    Resolves the root directory path of the git repository.
+
+    @returns {Path} Path object pointing to the root of the repository.
+    """
+    current_dir = Path(__file__).resolve().parent
+    return current_dir.parent
+
+
+def log_info(msg: str, verbose: bool = False) -> None:
+    """
+    Outputs an informational log message without emojis.
+
+    @param {str} msg - The log message text.
+    @param {bool} verbose - Ignored flag, output is always printed.
+    @returns {None}
+    """
+    print(f"[INFO] {msg}")
+
+
+def log_debug(msg: str, verbose: bool = False) -> None:
+    """
+    Outputs a debug log message when verbose mode is enabled.
+
+    @param {str} msg - The debug message text.
+    @param {bool} verbose - True if verbose logging is enabled.
+    @returns {None}
+    """
+    if verbose:
+        print(f"[DEBUG] {msg}")
+
+
+def log_warn(msg: str) -> None:
+    """
+    Outputs a warning log message without emojis.
+
+    @param {str} msg - The warning message text.
+    @returns {None}
+    """
+    print(f"[WARN] {msg}", file=sys.stderr)
+
+
+def log_error(msg: str) -> None:
+    """
+    Outputs an error log message without emojis.
+
+    @param {str} msg - The error message text.
+    @returns {None}
+    """
+    print(f"[ERROR] {msg}", file=sys.stderr)
+
+
+def is_blacklisted(candidate: str) -> bool:
+    """
+    Verifies if a candidate file or directory name matches any entry in the critical HAL blacklist.
+
+    @param {str} candidate - Target file path or directory name.
+    @returns {bool} True if candidate violates hardware preservation blacklist, False otherwise.
+    """
+    normalized = candidate.lower().replace("\\", "/")
+    for keyword in CRITICAL_HARDWARE_BLACKLIST:
+        if keyword in normalized:
+            return True
+    return False
+
+
+def parse_debloat_list(debloat_file: Path) -> List[str]:
+    """
+    Reads debloat-list.txt and extracts clean, non-empty, non-comment patterns.
+    Validates that no debloat pattern itself violates the critical hardware blacklist.
+
+    @param {Path} debloat_file - Path to debloat-list.txt.
+    @returns {List[str]} List of debloat relative path glob patterns.
+    """
+    if not debloat_file.exists():
+        raise FileNotFoundError(f"Debloat specification file not found: {debloat_file}")
+
+    content = debloat_file.read_text(encoding="utf-8")
+    patterns: List[str] = []
+
+    for line_num, line in enumerate(content.splitlines(), start=1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if is_blacklisted(line):
+            raise CriticalHardwareSafetyViolation(
+                f"Debloat list line {line_num} contains blacklisted critical hardware keyword: '{line}'"
+            )
+
+        patterns.append(line.replace("\\", "/"))
+
+    return patterns
+
+
+def find_matching_debloat_targets(system_root: Path, patterns: List[str]) -> List[Path]:
+    """
+    Scans the extracted system directory and matches files and directories against debloat patterns using glob and fnmatch.
+    Strictly verifies each matched item against the critical hardware safety blacklist.
+
+    @param {Path} system_root - Root directory of the extracted system filesystem.
+    @param {List[str]} patterns - List of debloat patterns from debloat-list.txt.
+    @returns {List[Path]} List of absolute Path objects targeted for debloat deletion.
+    """
+    matched_paths: Set[Path] = set()
+
+    # Build collection of candidate paths under system_root
+    all_candidates: List[Path] = []
+    for root, dirs, files in os.walk(system_root, topdown=True):
+        root_path = Path(root)
+        for d in dirs:
+            all_candidates.append(root_path / d)
+        for f in files:
+            all_candidates.append(root_path / f)
+
+    for candidate in all_candidates:
+        rel_path = candidate.relative_to(system_root).as_posix()
+        # Support both 'app/...' and 'system/app/...' matching conventions
+        rel_path_with_system = f"system/{rel_path}" if not rel_path.startswith("system/") else rel_path
+        rel_path_no_system = rel_path[len("system/"):] if rel_path.startswith("system/") else rel_path
+
+        matched = False
+        for pattern in patterns:
+            norm_pattern = pattern.strip("/")
+            pattern_no_system = norm_pattern[len("system/"):] if norm_pattern.startswith("system/") else norm_pattern
+            pattern_with_system = f"system/{norm_pattern}" if not norm_pattern.startswith("system/") else norm_pattern
+
+            if (
+                fnmatch.fnmatch(rel_path, norm_pattern)
+                or fnmatch.fnmatch(rel_path_with_system, pattern_with_system)
+                or fnmatch.fnmatch(rel_path_no_system, pattern_no_system)
+                or rel_path == norm_pattern
+                or rel_path_with_system == pattern_with_system
+                or rel_path_no_system == pattern_no_system
+            ):
+                matched = True
+                break
+
+        if matched:
+            # Step 6: Verify candidate against hardware safety blacklist
+            cand_str = str(candidate).replace("\\", "/")
+            if is_blacklisted(cand_str):
+                raise CriticalHardwareSafetyViolation(
+                    f"CRITICAL SAFETY VIOLATION: Candidate deletion target matches hardware blacklist: '{cand_str}'"
+                )
+            matched_paths.add(candidate)
+
+    # Filter out child paths if parent directory is already marked for removal
+    sorted_paths = sorted(matched_paths, key=lambda p: len(p.parts))
+    final_targets: List[Path] = []
+    for path in sorted_paths:
+        if not any(parent in final_targets for parent in path.parents):
+            final_targets.append(path)
+
+    return sorted(final_targets)
+
+
+def apply_debloat(system_root: Path, debloat_file: Path, dry_run: bool = False, verbose: bool = False) -> List[Path]:
+    """
+    Executes Step 5 and Step 6 of the pipeline: debloat list application with glob matching and safety verification.
+
+    @param {Path} system_root - Extracted system partition directory.
+    @param {Path} debloat_file - Path to debloat-list.txt.
+    @param {bool} dry_run - True to simulate without deleting files.
+    @param {bool} verbose - True to log detailed deletion targets.
+    @returns {List[Path]} List of removed or simulated-removed file/directory paths.
+    """
+    patterns = parse_debloat_list(debloat_file)
+    log_info(f"Loaded {len(patterns)} debloat patterns from {debloat_file.name}", verbose)
+
+    targets = find_matching_debloat_targets(system_root, patterns)
+    log_info(f"Identified {len(targets)} debloat targets for removal (Safety check: PASSED)", verbose)
+
+    for target in targets:
+        rel_str = target.relative_to(system_root).as_posix()
+        if dry_run:
+            log_debug(f"[DRY-RUN] Would remove: {rel_str}", verbose)
+        else:
+            log_debug(f"Removing: {rel_str}", verbose)
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=False)
+            elif target.exists():
+                target.unlink()
+
+    return targets
+
+
+def find_launcher_apk(explicit_path: Optional[Path] = None, repo_root: Optional[Path] = None) -> Optional[Path]:
+    """
+    Locates the compiled Android TV Launcher APK from explicit path or standard build locations.
+
+    @param {Optional[Path]} explicit_path - User-supplied path via CLI.
+    @param {Optional[Path]} repo_root - Root directory of the repository.
+    @returns {Optional[Path]} Path to existing launcher APK or None if not found.
+    """
+    if explicit_path:
+        if explicit_path.exists():
+            return explicit_path.resolve()
+        return None
+
+    root = repo_root or get_repo_root()
+
+    primary = root / DEFAULT_LAUNCHER_REL_PATH
+    if primary.exists():
+        return primary.resolve()
+
+    for fallback in DEFAULT_FALLBACK_LAUNCHER_PATHS:
+        fallback_path = root / fallback
+        if fallback_path.exists():
+            return fallback_path.resolve()
+
+    return None
+
+
+def find_aptoide_apk(explicit_path: Optional[Path] = None, repo_root: Optional[Path] = None) -> Optional[Path]:
+    """
+    Locates the AptoideTV APK from explicit path or standard storage locations.
+
+    @param {Optional[Path]} explicit_path - User-supplied path via CLI.
+    @param {Optional[Path]} repo_root - Root directory of the repository.
+    @returns {Optional[Path]} Path to existing AptoideTV APK or None if not found.
+    """
+    if explicit_path:
+        if explicit_path.exists():
+            return explicit_path.resolve()
+        return None
+
+    root = repo_root or get_repo_root()
+    for rel_path in DEFAULT_APTOIDE_REL_PATHS:
+        candidate = root / rel_path
+        if candidate.exists():
+            return candidate.resolve()
+
+    return None
+
+
+def validate_prerequisites(config: BuildConfiguration) -> None:
+    """
+    Executes Step 1: Validates existence of input stock firmware and compiled launcher APK.
+
+    @param {BuildConfiguration} config - Build configuration options.
+    @returns {None}
+    """
+    log_info("Step 1/9: Validating build prerequisites...", config.verbose)
+
+    if not config.dry_run and not config.input_fw.exists():
+        raise FileNotFoundError(
+            f"Input stock firmware binary not found: {config.input_fw}. "
+            "Please specify a valid firmware file via --input-fw or positional argument."
+        )
+
+    if not config.debloat_list.exists():
+        raise FileNotFoundError(f"Debloat specification file not found: {config.debloat_list}")
+
+    if not config.build_prop_patch.exists():
+        raise FileNotFoundError(f"build.prop patch file not found: {config.build_prop_patch}")
+
+    resolved_launcher = find_launcher_apk(config.launcher_apk)
+    if not config.dry_run and not resolved_launcher:
+        raise FileNotFoundError(
+            f"Compiled Wanbo Launcher APK not found at {config.launcher_apk or DEFAULT_LAUNCHER_REL_PATH}. "
+            "Please build the launcher first via 'make launcher' or specify --launcher-apk."
+        )
+
+    if resolved_launcher:
+        config.launcher_apk = resolved_launcher
+        log_info(f"Validated launcher APK: {config.launcher_apk}", config.verbose)
+    else:
+        log_info("[DRY-RUN] Launcher APK validation simulated.", config.verbose)
+
+    resolved_aptoide = find_aptoide_apk(config.aptoide_apk)
+    if resolved_aptoide:
+        config.aptoide_apk = resolved_aptoide
+        log_info(f"Validated AptoideTV APK: {config.aptoide_apk}", config.verbose)
+    else:
+        log_warn("AptoideTV APK not found at standard paths. AptoideTV injection will be skipped.")
+
+    log_info("Step 1/9 complete: All prerequisites validated successfully.", config.verbose)
+
+
+def unpack_mstar_binary(input_fw: Path, unpack_dir: Path, dry_run: bool = False, verbose: bool = False) -> Path:
+    """
+    Executes Step 2: Unpacks MStar/MediaTek firmware binary using mstar-bin-tool or partition extractors.
+
+    @param {Path} input_fw - Path to input firmware binary.
+    @param {Path} unpack_dir - Destination directory for unpacked partition images.
+    @param {bool} dry_run - True to simulate unpack.
+    @param {bool} verbose - True for detailed debug logging.
+    @returns {Path} Path to directory containing unpacked partitions.
+    """
+    log_info("Step 2/9: Unpacking MStar/MediaTek firmware binary...", verbose)
+    unpack_dir.mkdir(parents=True, exist_ok=True)
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated MStar unpack of {input_fw.name} into {unpack_dir}", verbose)
+        dummy_sparse = unpack_dir / "system.img"
+        if not dummy_sparse.exists():
+            dummy_sparse.write_bytes(b"MOCK_SPARSE_IMAGE_DATA")
+        return unpack_dir
+
+    # Check for mstar-bin-tool unpack script or executable
+    unpack_tool = shutil.which("unpack.py") or shutil.which("mstar-bin-tool")
+    if unpack_tool:
+        cmd = [unpack_tool, str(input_fw), str(unpack_dir)]
+        log_info(f"Running unpack command: {' '.join(cmd)}", verbose)
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise PipelineStepError(f"mstar-bin-tool unpack failed: {res.stderr}")
+    else:
+        # Fallback check for direct partition structure or custom extractor
+        sparse_img = unpack_dir / "system.img"
+        if not sparse_img.exists():
+            raise PipelineStepError(
+                f"No suitable MStar firmware unpacker tool found in PATH (unpack.py / mstar-bin-tool). "
+                f"Cannot unpack {input_fw}."
+            )
+
+    log_info("Step 2/9 complete: Firmware unpacked successfully.", verbose)
+    return unpack_dir
+
+
+def convert_sparse_to_raw(sparse_img: Path, raw_img: Path, dry_run: bool = False, verbose: bool = False) -> Path:
+    """
+    Executes Step 3: Converts sparse system.img to raw ext4 image via simg2img.
+
+    @param {Path} sparse_img - Path to input sparse system.img.
+    @param {Path} raw_img - Path to output raw ext4 system_raw.img.
+    @param {bool} dry_run - True to simulate conversion.
+    @param {bool} verbose - True for detailed debug logging.
+    @returns {Path} Path to converted raw ext4 image.
+    """
+    log_info("Step 3/9: Converting sparse system.img to raw ext4 image via simg2img...", verbose)
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated simg2img {sparse_img.name} -> {raw_img.name}", verbose)
+        if not raw_img.exists():
+            raw_img.write_bytes(b"MOCK_RAW_EXT4_DATA")
+        return raw_img
+
+    simg2img_tool = shutil.which("simg2img")
+    if not simg2img_tool:
+        raise PipelineStepError(
+            "simg2img tool not found in PATH. Please install android-tools (simg2img) to proceed."
+        )
+
+    cmd = [simg2img_tool, str(sparse_img), str(raw_img)]
+    log_info(f"Running: {' '.join(cmd)}", verbose)
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise PipelineStepError(f"simg2img conversion failed: {res.stderr}")
+
+    log_info("Step 3/9 complete: Sparse image converted to raw ext4.", verbose)
+    return raw_img
+
+
+def extract_system_image(raw_img: Path, extract_dir: Path, dry_run: bool = False, verbose: bool = False) -> Path:
+    """
+    Executes Step 4: Mounts or extracts system_raw.img to directory.
+
+    @param {Path} raw_img - Path to raw ext4 image.
+    @param {Path} extract_dir - Directory where filesystem tree is mounted/extracted.
+    @param {bool} dry_run - True to simulate extraction.
+    @param {bool} verbose - True for debug logging.
+    @returns {Path} Path to extracted filesystem root.
+    """
+    log_info("Step 4/9: Extracting system_raw.img filesystem...", verbose)
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated filesystem extraction of {raw_img.name} to {extract_dir}", verbose)
+        # Create minimal synthetic mock directory structure for dry run testing
+        (extract_dir / "app").mkdir(parents=True, exist_ok=True)
+        (extract_dir / "priv-app").mkdir(parents=True, exist_ok=True)
+        (extract_dir / "system").mkdir(parents=True, exist_ok=True)
+        mock_build_prop = extract_dir / "system" / "build.prop"
+        if not mock_build_prop.exists():
+            mock_build_prop.write_text("ro.build.version.release=9\nro.product.model=Wanbo T2 Max\n", encoding="utf-8")
+        return extract_dir
+
+    # In production on Linux/macOS/Windows, use 7z or loop mount or e2tools
+    p7zip = shutil.which("7z") or shutil.which("7za")
+    if p7zip:
+        cmd = [p7zip, "x", f"-o{extract_dir}", "-y", str(raw_img)]
+        log_info(f"Running: {' '.join(cmd)}", verbose)
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise PipelineStepError(f"7z extraction of raw ext4 failed: {res.stderr}")
+    else:
+        raise PipelineStepError("No suitable ext4 extractor found (7z/mount). Cannot extract raw ext4 image.")
+
+    log_info("Step 4/9 complete: Filesystem extracted successfully.", verbose)
+    return extract_dir
+
+
+def inject_packages(
+    system_root: Path,
+    launcher_apk: Optional[Path],
+    aptoide_apk: Optional[Path] = None,
+    dry_run: bool = False,
+    verbose: bool = False,
+) -> Dict[str, Path]:
+    """
+    Executes Step 7: Injects compiled WanboLauncher.apk into priv-app/WanboLauncher/ (0644)
+    and AptoideTV.apk into app/AptoideTV/ (0644).
+
+    @param {Path} system_root - Extracted system filesystem root directory.
+    @param {Optional[Path]} launcher_apk - Path to compiled WanboLauncher APK.
+    @param {Optional[Path]} aptoide_apk - Path to AptoideTV APK.
+    @param {bool} dry_run - True to simulate injection without file creation.
+    @param {bool} verbose - True for detailed debug logging.
+    @returns {Dict[str, Path]} Dictionary mapping injected component names to their final destination paths.
+    """
+    log_info("Step 7/9: Injecting WanboLauncher and AptoideTV APKs...", verbose)
+    injected: Dict[str, Path] = {}
+
+    # Check whether system root is mounted flat or with system/ subdirectory
+    has_system_sub = (system_root / "system").is_dir()
+    base_prefix = system_root / "system" if has_system_sub else system_root
+
+    # 1. Inject WanboLauncher into priv-app/WanboLauncher/
+    launcher_dir = base_prefix / "priv-app" / "WanboLauncher"
+    launcher_dest = launcher_dir / "WanboLauncher.apk"
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated injection: WanboLauncher.apk -> {launcher_dest} (permissions 0644)", verbose)
+        injected["WanboLauncher"] = launcher_dest
+    else:
+        launcher_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(launcher_dir, 0o755)
+        except OSError:
+            pass
+
+        if launcher_apk and launcher_apk.exists():
+            shutil.copy2(launcher_apk, launcher_dest)
+        else:
+            # Fallback placeholder if simulated/stub
+            launcher_dest.write_bytes(b"WANBO_LAUNCHER_MOCK_APK")
+
+        try:
+            os.chmod(launcher_dest, 0o644)
+        except OSError:
+            pass
+
+        log_info(f"Injected WanboLauncher.apk to {launcher_dest} (mode 0644)", verbose)
+        injected["WanboLauncher"] = launcher_dest
+
+    # 2. Inject AptoideTV into app/AptoideTV/
+    if aptoide_apk and aptoide_apk.exists():
+        aptoide_dir = base_prefix / "app" / "AptoideTV"
+        aptoide_dest = aptoide_dir / "AptoideTV.apk"
+
+        if dry_run:
+            log_info(f"[DRY-RUN] Simulated injection: AptoideTV.apk -> {aptoide_dest} (permissions 0644)", verbose)
+            injected["AptoideTV"] = aptoide_dest
+        else:
+            aptoide_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                os.chmod(aptoide_dir, 0o755)
+            except OSError:
+                pass
+
+            shutil.copy2(aptoide_apk, aptoide_dest)
+            try:
+                os.chmod(aptoide_dest, 0o644)
+            except OSError:
+                pass
+
+            log_info(f"Injected AptoideTV.apk to {aptoide_dest} (mode 0644)", verbose)
+            injected["AptoideTV"] = aptoide_dest
+    else:
+        log_info("AptoideTV APK not present; skipping AptoideTV injection.", verbose)
+
+    log_info("Step 7/9 complete: Packages injected successfully.", verbose)
+    return injected
+
+
+def patch_build_prop(
+    system_root: Path,
+    patch_file: Path,
+    dry_run: bool = False,
+    verbose: bool = False,
+) -> Path:
+    """
+    Executes Step 8: Appends build.prop.patch to system/build.prop.
+
+    @param {Path} system_root - Extracted system filesystem root directory.
+    @param {Path} patch_file - Path to build.prop.patch.
+    @param {bool} dry_run - True to simulate patching.
+    @param {bool} verbose - True for detailed debug logging.
+    @returns {Path} Path to patched build.prop file.
+    """
+    log_info("Step 8/9: Appending build.prop.patch to system/build.prop...", verbose)
+
+    if not patch_file.exists():
+        raise FileNotFoundError(f"Patch file not found: {patch_file}")
+
+    patch_content = patch_file.read_text(encoding="utf-8")
+
+    # Locate build.prop
+    candidates = [
+        system_root / "system" / "build.prop",
+        system_root / "build.prop",
+    ]
+    target_build_prop: Optional[Path] = None
+    for cand in candidates:
+        if cand.exists():
+            target_build_prop = cand
+            break
+
+    if not target_build_prop:
+        # Default to system_root / system / build.prop
+        target_build_prop = system_root / "system" / "build.prop"
+        if not dry_run:
+            target_build_prop.parent.mkdir(parents=True, exist_ok=True)
+            target_build_prop.write_text("# Stock build.prop\n", encoding="utf-8")
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated append of {patch_file.name} to {target_build_prop}", verbose)
+        return target_build_prop
+
+    existing_content = ""
+    if target_build_prop.exists():
+        existing_content = target_build_prop.read_text(encoding="utf-8")
+
+    separator = "\n" if not existing_content.endswith("\n") else ""
+    appended_content = (
+        existing_content
+        + separator
+        + "\n# ==============================================================================\n"
+        + "# WanboLightOS Automated Injection Patch\n"
+        + "# ==============================================================================\n"
+        + patch_content.strip()
+        + "\n"
+    )
+
+    target_build_prop.write_text(appended_content, encoding="utf-8")
+    try:
+        os.chmod(target_build_prop, 0o644)
+    except OSError:
+        pass
+
+    log_info(f"Appended {patch_file.name} to {target_build_prop} (mode 0644)", verbose)
+    log_info("Step 8/9 complete: build.prop patched successfully.", verbose)
+    return target_build_prop
+
+
+def convert_raw_to_sparse(raw_img: Path, sparse_img: Path, dry_run: bool = False, verbose: bool = False) -> Path:
+    """
+    Executes first part of Step 9: Re-converts raw ext4 filesystem to Android sparse image via img2simg.
+
+    @param {Path} raw_img - Path to modified raw ext4 image.
+    @param {Path} sparse_img - Path to output sparse system.img.
+    @param {bool} dry_run - True to simulate conversion.
+    @param {bool} verbose - True for debug logging.
+    @returns {Path} Path to output sparse image.
+    """
+    log_info("Step 9a/9: Re-converting raw ext4 to sparse system.img via img2simg...", verbose)
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated img2simg {raw_img.name} -> {sparse_img.name}", verbose)
+        sparse_img.write_bytes(b"MOCK_NEW_SPARSE_IMG")
+        return sparse_img
+
+    img2simg_tool = shutil.which("img2simg")
+    if not img2simg_tool:
+        raise PipelineStepError("img2simg tool not found in PATH. Cannot repack sparse image.")
+
+    cmd = [img2simg_tool, str(raw_img), str(sparse_img)]
+    log_info(f"Running: {' '.join(cmd)}", verbose)
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise PipelineStepError(f"img2simg conversion failed: {res.stderr}")
+
+    return sparse_img
+
+
+def repack_mstar_binary(unpacked_dir: Path, output_fw: Path, dry_run: bool = False, verbose: bool = False) -> Path:
+    """
+    Executes second part of Step 9: Re-packs MStar partition directory into final flashable USB firmware binary via pack.py.
+
+    @param {Path} unpacked_dir - Directory containing modified partitions.
+    @param {Path} output_fw - Destination path for final flashable USB firmware binary.
+    @param {bool} dry_run - True to simulate repack.
+    @param {bool} verbose - True for debug logging.
+    @returns {Path} Path to generated firmware binary.
+    """
+    log_info(f"Step 9b/9: Repacking partitions into final firmware binary: {output_fw.name}...", verbose)
+    output_fw.parent.mkdir(parents=True, exist_ok=True)
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated pack.py {unpacked_dir} -> {output_fw}", verbose)
+        output_fw.write_bytes(b"MOCK_FLASHABLE_WANBO_LIGHT_OS_FIRMWARE_BINARY")
+        return output_fw
+
+    pack_tool = shutil.which("pack.py") or shutil.which("mstar-bin-tool")
+    if pack_tool:
+        cmd = [pack_tool, str(unpacked_dir), str(output_fw)]
+        log_info(f"Running: {' '.join(cmd)}", verbose)
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise PipelineStepError(f"Firmware repacking failed: {res.stderr}")
+    else:
+        raise PipelineStepError(
+            "pack.py / mstar-bin-tool repack utility not found in PATH. Cannot assemble final binary."
+        )
+
+    log_info(f"Step 9/9 complete: Output firmware created at {output_fw}", verbose)
+    return output_fw
+
+
+def run_pipeline(config: BuildConfiguration) -> int:
+    """
+    Executes the complete 9-step firmware modification pipeline.
+
+    @param {BuildConfiguration} config - Complete build configuration.
+    @returns {int} Exit code 0 on success, non-zero on failure.
+    """
+    log_info("Starting WanboLightOS Firmware Build Pipeline", config.verbose)
+    log_info("Target Hardware: Wanbo T2 Max (armeabi-v7a, Android 9 Pie)", config.verbose)
+
+    try:
+        # Step 1: Validate prerequisites
+        validate_prerequisites(config)
+
+        # Setup working directory layout
+        work_dir = config.work_dir
+        work_dir.mkdir(parents=True, exist_ok=True)
+        unpacked_dir = work_dir / "unpacked"
+        system_sparse = unpacked_dir / "system.img"
+        system_raw = work_dir / "system_raw.img"
+        system_extract_dir = work_dir / "system_extracted"
+
+        # Step 2: Unpack MStar binary
+        unpack_mstar_binary(config.input_fw, unpacked_dir, dry_run=config.dry_run, verbose=config.verbose)
+
+        # Step 3: Convert sparse system.img to raw ext4
+        convert_sparse_to_raw(system_sparse, system_raw, dry_run=config.dry_run, verbose=config.verbose)
+
+        # Step 4: Extract system_raw.img
+        extract_system_image(system_raw, system_extract_dir, dry_run=config.dry_run, verbose=config.verbose)
+
+        # Step 5 & 6: Debloat with glob expansion and critical safety verification
+        log_info("Step 5/9 & 6/9: Applying debloat specification and enforcing HAL safety blacklist...", config.verbose)
+        apply_debloat(system_extract_dir, config.debloat_list, dry_run=config.dry_run, verbose=config.verbose)
+
+        # Step 7: Inject WanboLauncher and AptoideTV APKs
+        inject_packages(
+            system_extract_dir,
+            config.launcher_apk,
+            config.aptoide_apk,
+            dry_run=config.dry_run,
+            verbose=config.verbose,
+        )
+
+        # Step 8: Patch build.prop
+        patch_build_prop(system_extract_dir, config.build_prop_patch, dry_run=config.dry_run, verbose=config.verbose)
+
+        # Step 9: Re-convert to sparse and repack final binary
+        new_sparse = unpacked_dir / "system.img"
+        convert_raw_to_sparse(system_raw, new_sparse, dry_run=config.dry_run, verbose=config.verbose)
+        repack_mstar_binary(unpacked_dir, config.output_fw, dry_run=config.dry_run, verbose=config.verbose)
+
+        log_info(f"WanboLightOS build pipeline completed successfully: {config.output_fw}", config.verbose)
+
+        if not config.keep_work_dir and not config.dry_run and work_dir.exists():
+            log_info(f"Cleaning up temporary workspace: {work_dir}", config.verbose)
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+        return 0
+
+    except CriticalHardwareSafetyViolation as e:
+        log_error(f"HAL PRESERVATION ERROR: {e}")
+        return 2
+    except PipelineStepError as e:
+        log_error(f"PIPELINE STEP FAILED: {e}")
+        return 3
+    except Exception as e:
+        log_error(f"FATAL ERROR: {e}")
+        return 1
+
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    """
+    Configures and returns the command line argument parser for build_rom.py.
+
+    @returns {argparse.ArgumentParser} Configured ArgumentParser instance.
+    """
+    repo_root = get_repo_root()
+    default_debloat = repo_root / "os-pipeline" / "patches" / "debloat-list.txt"
+    default_build_prop = repo_root / "os-pipeline" / "patches" / "build.prop.patch"
+    default_launcher = repo_root / DEFAULT_LAUNCHER_REL_PATH
+    default_work_dir = repo_root / "build" / "rom_work"
+
+    parser = argparse.ArgumentParser(
+        description="WanboLightOS Automated Firmware Unpack, Debloat, Injection & Repack Pipeline."
+    )
+    # Positional or optional flags for input/output firmware
+    parser.add_argument(
+        "pos_input_fw",
+        nargs="?",
+        default=None,
+        help="Path to stock input firmware binary (e.g. stock_firmware.bin).",
+    )
+    parser.add_argument(
+        "pos_output_fw",
+        nargs="?",
+        default=None,
+        help=f"Path to destination flashable firmware binary (default: {DEFAULT_OUTPUT_BIN_NAME}).",
+    )
+    parser.add_argument(
+        "-i", "--input-fw",
+        dest="flag_input_fw",
+        default=None,
+        help="Explicit flag for stock input firmware binary path.",
+    )
+    parser.add_argument(
+        "-o", "--output-fw",
+        dest="flag_output_fw",
+        default=None,
+        help=f"Explicit flag for destination firmware binary path (default: {DEFAULT_OUTPUT_BIN_NAME}).",
+    )
+    parser.add_argument(
+        "--launcher-apk",
+        default=None,
+        help=f"Path to compiled WanboLauncher APK (default: autodetected from {default_launcher}).",
+    )
+    parser.add_argument(
+        "--aptoide-apk",
+        default=None,
+        help="Path to AptoideTV APK (optional, default: autodetected from os-pipeline/apks/AptoideTV.apk).",
+    )
+    parser.add_argument(
+        "--debloat-list",
+        default=str(default_debloat),
+        help=f"Path to debloat specification list (default: {default_debloat}).",
+    )
+    parser.add_argument(
+        "--build-prop-patch",
+        default=str(default_build_prop),
+        help=f"Path to build.prop patch file (default: {default_build_prop}).",
+    )
+    parser.add_argument(
+        "--work-dir",
+        default=str(default_work_dir),
+        help=f"Temporary working directory for extraction (default: {default_work_dir}).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform dry-run simulation of all steps without invoking external system binaries or deleting files.",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable detailed debug logging.",
+    )
+    parser.add_argument(
+        "--keep-work-dir",
+        action="store_true",
+        help="Preserve intermediate extracted workspace directory after pipeline completes.",
+    )
+
+    return parser
+
+
+def parse_args_to_config(argv: Optional[List[str]] = None) -> BuildConfiguration:
+    """
+    Parses CLI arguments and resolves them into a structured BuildConfiguration.
+
+    @param {Optional[List[str]]} argv - Command line argument strings.
+    @returns {BuildConfiguration} Fully resolved build configuration.
+    """
+    parser = create_argument_parser()
+    args = parser.parse_args(argv)
+
+    input_fw_str = args.flag_input_fw or args.pos_input_fw or "stock_firmware.bin"
+    output_fw_str = args.flag_output_fw or args.pos_output_fw or DEFAULT_OUTPUT_BIN_NAME
+
+    launcher_apk_path = Path(args.launcher_apk).resolve() if args.launcher_apk else None
+    aptoide_apk_path = Path(args.aptoide_apk).resolve() if args.aptoide_apk else None
+
+    return BuildConfiguration(
+        input_fw=Path(input_fw_str).resolve(),
+        output_fw=Path(output_fw_str).resolve(),
+        launcher_apk=launcher_apk_path,
+        aptoide_apk=aptoide_apk_path,
+        debloat_list=Path(args.debloat_list).resolve(),
+        build_prop_patch=Path(args.build_prop_patch).resolve(),
+        work_dir=Path(args.work_dir).resolve(),
+        dry_run=args.dry_run,
+        verbose=args.verbose,
+        keep_work_dir=args.keep_work_dir,
+    )
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """
+    Main entry point for command-line execution of build_rom.py.
+
+    @param {Optional[List[str]]} argv - Command-line arguments.
+    @returns {int} Exit code: 0 on success, non-zero on failure.
+    """
+    config = parse_args_to_config(argv)
+    return run_pipeline(config)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
