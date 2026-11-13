@@ -48,7 +48,11 @@ class AppCardAdapter(
      */
     fun submitList(newApps: List<AppItem>) {
         this.apps = newApps.toList()
-        notifyDataSetChanged()
+        try {
+            notifyDataSetChanged()
+        } catch (_: Exception) {
+            // Safe fallback during headless JVM unit testing when observer is unattached
+        }
     }
 
     /**

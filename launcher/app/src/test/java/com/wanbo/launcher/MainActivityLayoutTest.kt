@@ -8,7 +8,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.nio.file.Files
 
 /**
  * Unit tests validating the tvOS floating cards layout, activity_main.xml layout structure,
@@ -104,7 +103,7 @@ class MainActivityLayoutTest {
         val mainXml = File(layoutDir, "activity_main.xml")
         assertTrue("activity_main.xml must exist in $layoutDir", mainXml.exists())
 
-        val content = Files.readString(mainXml.toPath())
+        val content = mainXml.readText()
         assertTrue("activity_main.xml must declare <LinearLayout root", content.contains("<LinearLayout"))
         assertTrue("activity_main.xml must reference @color/bg_dark", content.contains("@color/bg_dark"))
         assertTrue("activity_main.xml must disable clipChildren", content.contains("android:clipChildren=\"false\""))
@@ -119,7 +118,7 @@ class MainActivityLayoutTest {
     fun testActivityMainRequiredIds() {
         val layoutDir = resolveResDir("layout")
         val mainXml = File(layoutDir, "activity_main.xml")
-        val content = Files.readString(mainXml.toPath())
+        val content = mainXml.readText()
 
         assertTrue("activity_main.xml must define @+id/btnHdmi", content.contains("@+id/btnHdmi"))
         assertTrue("activity_main.xml must define @+id/btnKeystone", content.contains("@+id/btnKeystone"))
@@ -136,7 +135,7 @@ class MainActivityLayoutTest {
     fun testActivityMainTopBarHardwareButtonsAndDrawables() {
         val layoutDir = resolveResDir("layout")
         val mainXml = File(layoutDir, "activity_main.xml")
-        val content = Files.readString(mainXml.toPath())
+        val content = mainXml.readText()
 
         assertTrue("Top bar must display WanboOS title", content.contains("WanboOS"))
         assertTrue("btnHdmi must use @drawable/ic_hdmi", content.contains("@drawable/ic_hdmi"))
@@ -155,7 +154,7 @@ class MainActivityLayoutTest {
     fun testActivityMainTopShelfHeroArea() {
         val layoutDir = resolveResDir("layout")
         val mainXml = File(layoutDir, "activity_main.xml")
-        val content = Files.readString(mainXml.toPath())
+        val content = mainXml.readText()
 
         assertTrue("Top shelf must specify 140dp height", content.contains("android:layout_height=\"140dp\""))
         assertTrue("Top shelf must use @drawable/bg_top_shelf", content.contains("@drawable/bg_top_shelf"))
@@ -172,7 +171,7 @@ class MainActivityLayoutTest {
     fun testActivityMainFavoritesSection() {
         val layoutDir = resolveResDir("layout")
         val mainXml = File(layoutDir, "activity_main.xml")
-        val content = Files.readString(mainXml.toPath())
+        val content = mainXml.readText()
 
         assertTrue("Favorites section label must be FAVORITOS", content.contains("FAVORITOS"))
         assertTrue("Favorites section label must have letterSpacing 0.1", content.contains("android:letterSpacing=\"0.1\""))
@@ -189,7 +188,7 @@ class MainActivityLayoutTest {
         val cardXml = File(layoutDir, "item_app_card.xml")
         assertTrue("item_app_card.xml must exist in $layoutDir", cardXml.exists())
 
-        val content = Files.readString(cardXml.toPath())
+        val content = cardXml.readText()
         assertTrue("item_app_card.xml must declare layout_width=\"120dp\"", content.contains("android:layout_width=\"120dp\""))
         assertTrue("item_app_card.xml must declare layout_height=\"90dp\"", content.contains("android:layout_height=\"90dp\""))
         assertTrue("item_app_card.xml must declare focusable=\"true\"", content.contains("android:focusable=\"true\""))
@@ -244,7 +243,7 @@ class MainActivityLayoutTest {
         val mainActivityFile = resolveFile("src/main/java/com/wanbo/launcher/MainActivity.kt")
         assertTrue("MainActivity.kt must exist", mainActivityFile.exists())
 
-        val content = Files.readString(mainActivityFile.toPath())
+        val content = mainActivityFile.readText()
         assertTrue("MainActivity must set activity_main layout", content.contains("setContentView(R.layout.activity_main)"))
         assertTrue("MainActivity must bind btnHdmi", content.contains("btnHdmi"))
         assertTrue("MainActivity must bind btnKeystone", content.contains("btnKeystone"))
@@ -273,7 +272,7 @@ class MainActivityLayoutTest {
 
         for (file in filesToCheck) {
             assertTrue("File ${file.name} must exist", file.exists())
-            val content = Files.readString(file.toPath())
+            val content = file.readText()
             assertFalse("File ${file.name} violates Zero Emojis policy", containsEmoji(content))
         }
     }
@@ -290,7 +289,7 @@ class MainActivityLayoutTest {
         )
 
         for (file in filesToCheck) {
-            val content = Files.readString(file.toPath())
+            val content = file.readText()
             assertTrue("File ${file.name} must have KDoc comments", content.contains("/**") && content.contains("*/"))
         }
     }

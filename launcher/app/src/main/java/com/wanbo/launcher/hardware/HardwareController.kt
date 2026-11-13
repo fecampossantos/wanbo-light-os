@@ -165,14 +165,42 @@ class HardwareController(private val defaultContext: Context? = null) {
 
         /**
          * Safely launches the Keystone / Trapezoid calibration application.
-         * Catches [ActivityNotFoundException] and notifies the user via Toast without crashing.
+         * Attempts primary keystone activity first, then falls back to ProjectModeActivity
+         * or FourPointActivity before displaying a Toast notification.
          *
          * @param context Context used to invoke startActivity and display Toast notifications.
-         * @return True if the activity was launched successfully; false otherwise.
+         * @return True if an activity was launched successfully; false otherwise.
          */
         @JvmStatic
         fun launchKeystone(context: Context): Boolean {
-            return safeLaunch(context, createKeystoneIntent(), MSG_KEYSTONE_NOT_FOUND)
+            return try {
+                context.startActivity(createKeystoneIntent())
+                true
+            } catch (e: ActivityNotFoundException) {
+                try {
+                    val projectModeIntent = createExplicitIntent(
+                        "com.chijimlee.tyylauncher",
+                        "com.chijimlee.tyylauncher.activity.ProjectModeActivity"
+                    )
+                    context.startActivity(projectModeIntent)
+                    true
+                } catch (e2: ActivityNotFoundException) {
+                    try {
+                        val fourPointIntent = createExplicitIntent(
+                            "com.chijimlee.trapezoid",
+                            "com.chijimlee.trapezoid.activity.FourPointActivity"
+                        )
+                        context.startActivity(fourPointIntent)
+                        true
+                    } catch (fallbackEx: Exception) {
+                        Toast.makeText(context, MSG_KEYSTONE_NOT_FOUND, Toast.LENGTH_SHORT).show()
+                        false
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, MSG_KEYSTONE_NOT_FOUND, Toast.LENGTH_SHORT).show()
+                false
+            }
         }
 
         /**

@@ -14,8 +14,16 @@ import java.util.Locale
  */
 class AppsRepository(
     private val context: Context? = null,
-    private val packageManager: PackageManager? = context?.packageManager
+    private val packageManager: PackageManager? = context?.packageManager,
+    private val favoriteAppsManager: FavoriteAppsManager? = null
 ) {
+    private val favManager: FavoriteAppsManager? = favoriteAppsManager ?: context?.let {
+        try {
+            FavoriteAppsManager.fromContext(it)
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     /**
      * Retrieves all launchable applications, sorting favorites first by default.
@@ -84,8 +92,8 @@ class AppsRepository(
 
             val pkg = activityInfo.packageName ?: return
 
-            // Exclude empty packages, launcher self package, and already processed apps
-            if (pkg.isBlank() || pkg == ownPackageName || seenPackages.contains(pkg)) {
+            // Exclude empty packages, launcher self package, excluded LiveTV services, and already processed apps
+            if (pkg.isBlank() || pkg == ownPackageName || seenPackages.contains(pkg) || isExcluded(pkg)) {
                 return
             }
 
@@ -112,13 +120,15 @@ class AppsRepository(
                 null
             }
 
+            val isFavorite = favManager?.isFavorite(pkg) ?: false
+
             appList.add(
                 AppItem(
                     packageName = pkg,
                     label = label,
                     icon = icon,
                     banner = banner,
-                    isFavorite = false
+                    isFavorite = isFavorite
                 )
             )
         }
@@ -154,6 +164,28 @@ class AppsRepository(
     }
 
     /**
+     * Checks whether a package is excluded from user-facing app listings.
+     * LiveTV (com.mediatek.tvinput / com.android.tv) is filtered out from drawer
+     * while remaining installed for hardware HDMI switching.
+     *
+     * @param packageName Application package name to verify.
+     * @return True if excluded; false otherwise.
+     */
+    fun isExcluded(packageName: String): Boolean {
+        return EXCLUDED_PACKAGES.contains(packageName)
+    }
+
+    /**
+     * Filters out excluded system packages such as LiveTV from the application list.
+     *
+     * @param apps The list of AppItem instances.
+     * @return Filtered list excluding LiveTV packages.
+     */
+    fun filterExcluded(apps: List<AppItem>): List<AppItem> {
+        return apps.filter { !isExcluded(it.packageName) }
+    }
+
+    /**
      * Sorts application items: favorites first (if requested), followed by case-insensitive
      * alphabetical order by label.
      *
@@ -165,6 +197,17 @@ class AppsRepository(
         return apps.sortedWith(
             compareBy<AppItem> { if (favoritesFirst && it.isFavorite) 0 else 1 }
                 .thenBy { it.label.lowercase(Locale.ROOT) }
+        )
+    }
+
+    companion object {
+        /**
+         * Package names excluded from user-facing launcher display.
+         * Hardware TV input services remain installed for HDMI switching via HardwareController.
+         */
+        val EXCLUDED_PACKAGES: Set<String> = setOf(
+            "com.mediatek.tvinput",
+            "com.android.tv"
         )
     }
 }
