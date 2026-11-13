@@ -419,6 +419,29 @@ def validate_prerequisites(config: BuildConfiguration) -> None:
     log_info("Step 1/9 complete: All prerequisites validated successfully.", config.verbose)
 
 
+def find_mstar_tool(tool_name: str) -> Optional[Path]:
+    """
+    Discovers an MStar firmware utility script or binary in PATH or within local repository directories.
+
+    @param {str} tool_name - Executable or script name (e.g. 'unpack.py' or 'pack.py').
+    @returns {Optional[Path]} Path to discovered tool, or None if not found.
+    """
+    found = shutil.which(tool_name)
+    if found:
+        return Path(found)
+    repo_root = get_repo_root()
+    local_candidates = [
+        repo_root / "os-pipeline" / "tools" / "mstar-bin-tool" / tool_name,
+        repo_root / "tools" / "mstar-bin-tool" / tool_name,
+        repo_root / "os-pipeline" / "tools" / tool_name,
+        repo_root / "tools" / tool_name,
+    ]
+    for cand in local_candidates:
+        if cand.exists() and cand.is_file():
+            return cand
+    return None
+
+
 def unpack_mstar_binary(input_fw: Path, unpack_dir: Path, dry_run: bool = False, verbose: bool = False) -> Path:
     """
     Executes Step 2: Unpacks MStar/MediaTek firmware binary using mstar-bin-tool or partition extractors.
@@ -440,7 +463,7 @@ def unpack_mstar_binary(input_fw: Path, unpack_dir: Path, dry_run: bool = False,
         return unpack_dir
 
     # Check for mstar-bin-tool unpack script or executable
-    unpack_tool = shutil.which("unpack.py") or shutil.which("mstar-bin-tool")
+    unpack_tool = find_mstar_tool("unpack.py") or shutil.which("mstar-bin-tool")
     if unpack_tool:
         tool_str = str(unpack_tool)
         if tool_str.lower().endswith(".py"):
@@ -735,15 +758,18 @@ def patch_build_prop(
 def repack_system_image(
     system_extract_dir: Path,
     system_raw_output: Path,
+    unpacked_dir: Optional[Path] = None,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> Path:
     """
     Executes raw ext4 filesystem repacking from extracted system directory tree.
     Rebuilds system_raw.img using make_ext4fs or mke2fs + e2fsdroid before sparse conversion.
+    Preserves SELinux security contexts if file_contexts is present in the unpacked tree or system partition.
 
     @param {Path} system_extract_dir - Directory containing extracted and modified system files.
     @param {Path} system_raw_output - Destination path for rebuilt raw ext4 image.
+    @param {Optional[Path]} unpacked_dir - Optional path to unpacked firmware tree for locating file_contexts.
     @param {bool} dry_run - True to simulate repacking without executing external host tools.
     @param {bool} verbose - True for detailed debug logging.
     @returns {Path} Path to repacked raw ext4 image.
@@ -764,6 +790,23 @@ def repack_system_image(
         if existing_size > 0:
             partition_size = existing_size
 
+    # Discover SELinux file contexts file to preserve Android 9 security labels
+    selinux_contexts_candidates = []
+    if unpacked_dir:
+        selinux_contexts_candidates.extend([
+            unpacked_dir / "file_contexts.bin",
+            unpacked_dir / "file_contexts",
+            unpacked_dir / "system.file_contexts",
+        ])
+    selinux_contexts_candidates.extend([
+        system_extract_dir / "etc" / "selinux" / "plat_file_contexts",
+        system_extract_dir / "etc" / "selinux" / "file_contexts.bin",
+        system_extract_dir / "file_contexts.bin",
+    ])
+    file_contexts_path = next((p for p in selinux_contexts_candidates if p.exists() and p.is_file()), None)
+    if file_contexts_path:
+        log_info(f"Using SELinux file contexts: {file_contexts_path}", verbose)
+
     make_ext4fs_tool = shutil.which("make_ext4fs")
     mke2fs_tool = shutil.which("mke2fs")
     e2fsdroid_tool = shutil.which("e2fsdroid")
@@ -775,9 +818,13 @@ def repack_system_image(
             str(partition_size),
             "-a",
             "system",
+        ]
+        if file_contexts_path:
+            cmd.extend(["-S", str(file_contexts_path)])
+        cmd.extend([
             str(system_raw_output),
             str(system_extract_dir),
-        ]
+        ])
         log_info(f"Running make_ext4fs: {' '.join(cmd)}", verbose)
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:
@@ -801,12 +848,16 @@ def repack_system_image(
         cmd_e2fs = [
             e2fsdroid_tool,
             "-e",
+        ]
+        if file_contexts_path:
+            cmd_e2fs.extend(["-S", str(file_contexts_path)])
+        cmd_e2fs.extend([
             "-a",
             "/system",
             "-f",
             str(system_extract_dir),
             str(system_raw_output),
-        ]
+        ])
         log_info(f"Running e2fsdroid: {' '.join(cmd_e2fs)}", verbose)
         res_e2fs = subprocess.run(cmd_e2fs, capture_output=True, text=True)
         if res_e2fs.returncode != 0:
@@ -869,7 +920,7 @@ def repack_mstar_binary(unpacked_dir: Path, output_fw: Path, dry_run: bool = Fal
         output_fw.write_bytes(b"MOCK_FLASHABLE_WANBO_LIGHT_OS_FIRMWARE_BINARY")
         return output_fw
 
-    pack_tool = shutil.which("pack.py") or shutil.which("mstar-bin-tool")
+    pack_tool = find_mstar_tool("pack.py") or shutil.which("mstar-bin-tool")
     if pack_tool:
         tool_str = str(pack_tool)
         if tool_str.lower().endswith(".py"):
@@ -937,7 +988,7 @@ def run_pipeline(config: BuildConfiguration) -> int:
         patch_build_prop(system_extract_dir, config.build_prop_patch, dry_run=config.dry_run, verbose=config.verbose)
 
         # Repack modified filesystem into raw ext4 image before sparse conversion
-        repack_system_image(system_extract_dir, system_raw, dry_run=config.dry_run, verbose=config.verbose)
+        repack_system_image(system_extract_dir, system_raw, unpacked_dir=unpacked_dir, dry_run=config.dry_run, verbose=config.verbose)
 
         # Step 9: Re-convert to sparse and repack final binary
         new_sparse = unpacked_dir / "system.img"

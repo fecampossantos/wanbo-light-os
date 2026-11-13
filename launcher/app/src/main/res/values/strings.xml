@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WanboOS</string>
+    <string name="hero_subtitle">WanboLightOS • Modo Seguro • Zero Telemetria</string>
+    <string name="favorites_label">FAVORITOS</string>
+    <string name="cannot_launch">Cannot launch %1$s</string>
+    <string name="app_not_found">Application not found: %1$s</string>
+    <string name="keystone_not_found">Keystone calibration app not found</string>
+    <string name="hdmi_not_found">HDMI input service not found</string>
+    <string name="settings_not_found">Settings application not found</string>
+</resources>

@@ -33,6 +33,7 @@ from build_rom import (  # noqa: E402
     create_argument_parser,
     extract_system_image,
     find_matching_debloat_targets,
+    find_mstar_tool,
     get_repo_root,
     inject_packages,
     is_blacklisted,
@@ -612,7 +613,7 @@ class TestBuildPipeline(unittest.TestCase):
             mock_run.assert_called_once()
             cmd_called = mock_run.call_args[0][0]
             self.assertEqual(cmd_called[0], sys.executable)
-            self.assertEqual(cmd_called[1], "C:/tools/unpack.py")
+            self.assertEqual(Path(cmd_called[1]), Path("C:/tools/unpack.py"))
 
         with patch("shutil.which", return_value="/usr/bin/pack.py"), \
              patch("subprocess.run") as mock_run_pack:
@@ -621,7 +622,7 @@ class TestBuildPipeline(unittest.TestCase):
             mock_run_pack.assert_called_once()
             cmd_called_pack = mock_run_pack.call_args[0][0]
             self.assertEqual(cmd_called_pack[0], sys.executable)
-            self.assertEqual(cmd_called_pack[1], "/usr/bin/pack.py")
+            self.assertEqual(Path(cmd_called_pack[1]), Path("/usr/bin/pack.py"))
 
     def test_find_matching_debloat_targets_ignores_host_directory_blacklist_substrings(self) -> None:
         """
@@ -692,6 +693,50 @@ class TestBuildPipeline(unittest.TestCase):
         self.assertTrue(makefile_path.exists())
         text = makefile_path.read_text(encoding="utf-8")
         self.assertIn("all: help", text)
+
+    def test_repack_system_image_includes_selinux_contexts_flag(self) -> None:
+        """
+        Validates that repack_system_image appends -S flag when file_contexts is present.
+
+        @returns {None}
+        """
+        sys_extract = self.temp_dir / "selinux_extract"
+        sys_extract.mkdir(parents=True, exist_ok=True)
+        unpacked_dir = self.temp_dir / "selinux_unpacked"
+        unpacked_dir.mkdir(parents=True, exist_ok=True)
+        file_ctx = unpacked_dir / "file_contexts.bin"
+        file_ctx.write_bytes(b"SELINUX_CONTEXTS")
+        sys_raw = self.temp_dir / "sys_raw.img"
+
+        with patch("shutil.which") as mock_which, \
+             patch("subprocess.run") as mock_run:
+            mock_which.side_effect = lambda tool: "/usr/bin/make_ext4fs" if tool == "make_ext4fs" else None
+            mock_run.return_value = MagicMock(returncode=0, stderr="", stdout="")
+
+            repack_system_image(sys_extract, sys_raw, unpacked_dir=unpacked_dir, dry_run=False)
+            mock_run.assert_called_once()
+            cmd_called = mock_run.call_args[0][0]
+            self.assertIn("-S", cmd_called)
+            self.assertIn(str(file_ctx), cmd_called)
+
+    def test_find_mstar_tool_discovers_repo_local_script(self) -> None:
+        """
+        Validates that find_mstar_tool discovers unpack.py inside repository tools directory.
+
+        @returns {None}
+        """
+        tools_dir = self.repo_root / "os-pipeline" / "tools" / "mstar-bin-tool"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+        dummy_unpack = tools_dir / "unpack.py"
+        dummy_unpack.write_text("# dummy", encoding="utf-8")
+        try:
+            with patch("shutil.which", return_value=None):
+                discovered = find_mstar_tool("unpack.py")
+                self.assertIsNotNone(discovered)
+                self.assertEqual(discovered.resolve(), dummy_unpack.resolve())
+        finally:
+            if dummy_unpack.exists():
+                dummy_unpack.unlink()
 
 
 def main() -> int:

@@ -134,11 +134,15 @@ class AppCardAdapter(
             val displayDrawable = app.banner ?: app.icon
             ivAppIcon.setImageDrawable(displayDrawable)
 
-            // Reset view properties to prevent recycling artifacts
-            itemView.scaleX = SCALE_UNFOCUSED
-            itemView.scaleY = SCALE_UNFOCUSED
-            itemView.translationZ = ELEVATION_UNFOCUSED_DP
-            itemView.setBackgroundResource(R.drawable.bg_card_unfocused)
+            // Synchronize view properties with current focus state to prevent recycling artifacts
+            val isFocused = itemView.hasFocus()
+            val density = itemView.resources.displayMetrics.density
+            itemView.scaleX = if (isFocused) SCALE_FOCUSED else SCALE_UNFOCUSED
+            itemView.scaleY = if (isFocused) SCALE_FOCUSED else SCALE_UNFOCUSED
+            itemView.translationZ = (if (isFocused) ELEVATION_FOCUSED_DP else ELEVATION_UNFOCUSED_DP) * density
+            itemView.setBackgroundResource(
+                if (isFocused) R.drawable.bg_card_focused else R.drawable.bg_card_unfocused
+            )
 
             itemView.setOnClickListener {
                 clickListener(app)

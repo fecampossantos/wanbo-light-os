@@ -25,6 +25,12 @@ class MainActivity : Activity() {
     /** Adapter instance managing floating application cards in the favorites dock. */
     var appAdapter: AppCardAdapter = AppCardAdapter()
 
+    /** Background executor service for off-loading package queries and icon decoding. */
+    private val backgroundExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /** Main thread handler for posting UI updates. */
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     /**
      * Initializes the activity, sets up the layout, hardware shortcuts, and favorites dock.
      *
@@ -46,6 +52,14 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         loadApps()
+    }
+
+    /**
+     * Cleans up background thread executor when activity is destroyed.
+     */
+    override fun onDestroy() {
+        super.onDestroy()
+        backgroundExecutor.shutdown()
     }
 
     /**
@@ -80,11 +94,16 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Loads installed launchable applications from [AppsRepository] and updates the adapter.
+     * Loads installed launchable applications from [AppsRepository] asynchronously
+     * on a background worker thread and posts the resolved list back to the UI thread.
      */
     fun loadApps() {
-        val apps = appsRepository.getLaunchableApps()
-        appAdapter.submitList(apps)
+        backgroundExecutor.execute {
+            val apps = appsRepository.getLaunchableApps()
+            mainHandler.post {
+                appAdapter.submitList(apps)
+            }
+        }
     }
 
     /**
