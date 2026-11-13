@@ -541,6 +541,43 @@ public class TestRunner {
         assertTrue("test_docs.py must test zero emojis", testDocsContent.contains("test_all_documentation_files_zero_emojis"));
         assertTrue("Makefile must include docs/tests in test target", makefileContent.contains("docs/tests"));
 
+        // 18. Task 1 - FavoriteAppsManager and AppsRepository favorites/LiveTV verification
+        File favManagerFile = new File("launcher/app/src/main/java/com/wanbo/launcher/data/FavoriteAppsManager.kt");
+        assertTrue("FavoriteAppsManager.kt must exist", favManagerFile.exists());
+        String favManagerContent = Files.readString(favManagerFile.toPath());
+        assertFalse("FavoriteAppsManager.kt must NOT contain emojis", containsEmoji(favManagerContent));
+        assertTrue("FavoriteAppsManager must declare PREFS_NAME", favManagerContent.contains("PREFS_NAME"));
+        assertTrue("FavoriteAppsManager must declare KEY_FAVORITES", favManagerContent.contains("KEY_FAVORITES"));
+        assertTrue("FavoriteAppsManager must declare DEFAULT_FAVORITES", favManagerContent.contains("DEFAULT_FAVORITES"));
+        assertTrue("FavoriteAppsManager must include YouTube TV in defaults", favManagerContent.contains("com.google.android.youtube.tv"));
+        assertTrue("FavoriteAppsManager must include Netflix in defaults", favManagerContent.contains("com.netflix.ninja"));
+        assertTrue("FavoriteAppsManager must include Prime Video in defaults", favManagerContent.contains("com.amazon.amazonvideo.livingroom"));
+        assertTrue("FavoriteAppsManager must include Disney+ in defaults", favManagerContent.contains("com.disney.disneyplus"));
+        assertTrue("FavoriteAppsManager must include Aptoide TV in defaults", favManagerContent.contains("cm.aptoidetv.pt"));
+        assertTrue("FavoriteAppsManager must provide getFavoritePackageNames", favManagerContent.contains("fun getFavoritePackageNames"));
+        assertTrue("FavoriteAppsManager must provide isFavorite", favManagerContent.contains("fun isFavorite"));
+        assertTrue("FavoriteAppsManager must provide addFavorite", favManagerContent.contains("fun addFavorite"));
+        assertTrue("FavoriteAppsManager must provide removeFavorite", favManagerContent.contains("fun removeFavorite"));
+        assertTrue("FavoriteAppsManager must provide fromContext factory", favManagerContent.contains("fun fromContext"));
+
+        // Verify AppsRepository LiveTV exclusion and filterExcluded
+        assertTrue("AppsRepository must define EXCLUDED_PACKAGES", repoContent.contains("EXCLUDED_PACKAGES"));
+        assertTrue("AppsRepository must exclude com.mediatek.tvinput", repoContent.contains("\"com.mediatek.tvinput\""));
+        assertTrue("AppsRepository must exclude com.android.tv", repoContent.contains("\"com.android.tv\""));
+        assertTrue("AppsRepository must provide isExcluded", repoContent.contains("fun isExcluded"));
+        assertTrue("AppsRepository must provide filterExcluded", repoContent.contains("fun filterExcluded"));
+
+        File favTestFile = new File("launcher/app/src/test/java/com/wanbo/launcher/FavoriteAppsManagerTest.kt");
+        assertTrue("FavoriteAppsManagerTest.kt must exist", favTestFile.exists());
+        String favTestContent = Files.readString(favTestFile.toPath());
+        assertFalse("FavoriteAppsManagerTest.kt must NOT contain emojis", containsEmoji(favTestContent));
+        assertTrue("FavoriteAppsManagerTest must test default favorites", favTestContent.contains("testDefaultFavoritesWhenStorageIsEmpty"));
+        assertTrue("FavoriteAppsManagerTest must test adding favorites", favTestContent.contains("testAddFavoriteUpdatesStorage"));
+        assertTrue("FavoriteAppsManagerTest must test removing favorites", favTestContent.contains("testRemoveFavoriteUpdatesStorage"));
+        assertTrue("FavoriteAppsManagerTest must test duplicate prevention", favTestContent.contains("testPreventDuplicateAdditions"));
+        assertTrue("FavoriteAppsManagerTest must test empty/whitespace handling", favTestContent.contains("testEmptyOrWhitespacePackageHandling"));
+        assertTrue("FavoriteAppsManagerTest must test LiveTV filtering", favTestContent.contains("testLiveTvFilteringInAppsRepository"));
+
         System.out.println("ALL TESTS PASSED: " + testsPassed + "/" + testsRun + " assertions verified.");
     }
 }
