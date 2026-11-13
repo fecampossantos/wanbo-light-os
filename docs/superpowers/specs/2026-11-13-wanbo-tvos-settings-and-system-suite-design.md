@@ -133,6 +133,27 @@ This design specification outlines the complete modernization of the Wanbo T2 Ma
 - **Monitor de Memória RAM em Tempo Real**: Medidor visual da RAM física (~843 MB) + Swap ZRAM LZ4 (1 GB), exibindo memória livre, ocupada e buffers em tempo real.
 - **Build & Kernel**: Versão do kernel e compilação limpa do firmware.
 
+### 3.4 Home Screen (Launcher) Architecture & Layout
+A tela inicial (WanboOS) adota a seguinte hierarquia visual e funcional estrita:
+
+1. **Top Bar / Status Bar (Topo da Tela - 56dp)**:
+   - Alinhamento superior discreto, estilo tvOS elegante;
+   - Botões de utilidade e atalhos rápidos com estilo pílula translúcida e foco suave:
+     - **HDMI**: Seletor e comutador da entrada física de vídeo;
+     - **Projeção**: Acesso direto ao menu de Calibração Keystone e Modo de Projeção;
+     - **Configurações**: Acesso ao aplicativo nativo de Ajustes (`WanboSettings`);
+     - **Indicador Wi-Fi**: Ícone de intensidade de sinal;
+     - **Relógio & Data**: Formato minimalista "Sex, 13 Nov | 20:45".
+
+2. **Fileira 1: Favoritos (Lista de Favoritos)**:
+   - Fileira horizontal de rolagem suave contendo os aplicativos preferidos do usuário;
+   - Gerenciamento dinâmico: o usuário pode personalizar quais aplicativos aparecem nos Favoritos (através de um cartão "+ Adicionar" ou clique longo para fixar/desafixar);
+   - Persistência das escolhas em armazenamento local (`SharedPreferences`).
+
+3. **Fileira 2 / Grade: Todos os Aplicativos (Biblioteca Geral)**:
+   - Seção localizada diretamente abaixo dos Favoritos, exibindo todos os aplicativos instalados no sistema (Aptoide TV, Material Files, Streaming, etc.);
+   - Cartões no formato retangular squircle tvOS (raio 20dp) com elevação 1.1x e brilho branco suave (*white rim glow*) no foco do controle remoto.
+
 ---
 
 ## 4. Ecossistema da ROM & Debloat
