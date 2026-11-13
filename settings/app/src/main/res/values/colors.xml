@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      WanboSettings Palette for Wanbo T2 Max Smart Projector.
+      Optimized for high contrast and zero-latency rendering.
+      Strictly ZERO emojis across all resources.
+    -->
+    <color name="deep_obsidian">#0D0F14</color>
+    <color name="card_glass">#1A1E29</color>
+    <color name="cyan_highlight">#38BDF8</color>
+    <color name="white">#FFFFFF</color>
+    <color name="cool_slate">#94A3B8</color>
+
+    <!-- Semantic aliases -->
+    <color name="background_primary">#0D0F14</color>
+    <color name="surface_card">#1A1E29</color>
+    <color name="border_focus">#38BDF8</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#94A3B8</color>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      WanboSettings Theme.
+      Inherits Theme.AppCompat.NoActionBar for lean projector settings experience.
+      Strictly ZERO emojis.
+    -->
+    <style name="Theme.WanboSettings" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/deep_obsidian</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:colorBackground">@color/deep_obsidian</item>
+    </style>
+</resources>

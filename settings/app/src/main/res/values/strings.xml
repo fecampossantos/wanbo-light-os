@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      WanboSettings localized string resources.
+      Strictly ZERO emojis in any labels or titles.
+    -->
+    <string name="app_name">Ajustes</string>
+    <string name="category_network">Rede e Internet</string>
+    <string name="category_bluetooth">Bluetooth e Controles</string>
+    <string name="category_display">Tela e Projecao</string>
+    <string name="category_sound">Som e Audio</string>
+    <string name="category_apps">Aplicativos</string>
+    <string name="category_device_info">Sobre o Dispositivo</string>
+    <string name="category_date_time">Data e Hora</string>
+</resources>
