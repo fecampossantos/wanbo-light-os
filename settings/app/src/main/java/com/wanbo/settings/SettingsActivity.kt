@@ -268,6 +268,13 @@ class SettingsActivity : AppCompatActivity() {
 
             var canNavigateLeftInsidePane = false
             if (isInRightPane && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && currentFocusView != null) {
+                // Allow interactive horizontal slider cards (e.g. Master Volume) to handle DPAD_LEFT directly
+                if (currentFocusView.id == R.id.card_master_volume) {
+                    if (super.dispatchKeyEvent(event)) {
+                        return true
+                    }
+                }
+
                 val nextFocus = FocusFinder.getInstance().findNextFocus(
                     contentPaneContainer,
                     currentFocusView,
