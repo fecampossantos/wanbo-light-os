@@ -13,9 +13,12 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanbo.settings.model.SettingsCategory
+import com.wanbo.settings.panes.AboutPaneController
+import com.wanbo.settings.panes.AppsPaneController
 import com.wanbo.settings.panes.AudioPaneController
 import com.wanbo.settings.panes.BluetoothPaneController
 import com.wanbo.settings.panes.ProjectionPaneController
+import com.wanbo.settings.panes.SystemPaneController
 import com.wanbo.settings.panes.WifiPaneController
 import com.wanbo.settings.ui.CategoryRailAdapter
 import com.wanbo.settings.ui.DpadFocusEngine
@@ -49,6 +52,9 @@ class SettingsActivity : AppCompatActivity() {
     private var bluetoothController: BluetoothPaneController? = null
     private var audioController: AudioPaneController? = null
     private var projectionController: ProjectionPaneController? = null
+    private var appsController: AppsPaneController? = null
+    private var systemController: SystemPaneController? = null
+    private var aboutController: AboutPaneController? = null
 
     /**
      * Initializes the Split-View layout, instantiates the focus engine, and resolves the starting category.
@@ -201,8 +207,20 @@ class SettingsActivity : AppCompatActivity() {
                 controller.attach()
                 audioController = controller
             }
-            else -> {
-                // Empty placeholder for categories handled by subsequent tasks
+            SettingsCategory.APPS -> {
+                val controller = AppsPaneController(this, contentPaneBody)
+                controller.attach()
+                appsController = controller
+            }
+            SettingsCategory.SYSTEM -> {
+                val controller = SystemPaneController(this, contentPaneBody)
+                controller.attach()
+                systemController = controller
+            }
+            SettingsCategory.ABOUT -> {
+                val controller = AboutPaneController(this, contentPaneBody)
+                controller.attach()
+                aboutController = controller
             }
         }
     }
@@ -219,6 +237,12 @@ class SettingsActivity : AppCompatActivity() {
         audioController = null
         projectionController?.detach()
         projectionController = null
+        appsController?.detach()
+        appsController = null
+        systemController?.detach()
+        systemController = null
+        aboutController?.detach()
+        aboutController = null
     }
 
     /**
