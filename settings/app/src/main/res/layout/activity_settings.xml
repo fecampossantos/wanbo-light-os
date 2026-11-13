@@ -72,7 +72,7 @@
         <LinearLayout
             android:id="@+id/content_pane_placeholder"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:orientation="vertical">
 
             <TextView
@@ -94,10 +94,11 @@
             <FrameLayout
                 android:id="@+id/content_pane_body"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:layout_marginTop="24dp"
-                android:clickable="true"
-                android:focusable="true"
+                android:clickable="false"
+                android:focusable="false"
                 android:focusableInTouchMode="false" />
         </LinearLayout>
     </FrameLayout>

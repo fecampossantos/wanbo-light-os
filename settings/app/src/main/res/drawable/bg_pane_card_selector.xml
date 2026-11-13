@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  tvOS State list selector for content pane cards.
+  Strictly ZERO emojis.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:drawable="@drawable/bg_pane_card_focused" />
+    <item android:state_selected="true" android:drawable="@drawable/bg_pane_card_selected" />
+    <item android:state_activated="true" android:drawable="@drawable/bg_pane_card_selected" />
+    <item android:drawable="@drawable/bg_pane_card_normal" />
+</selector>

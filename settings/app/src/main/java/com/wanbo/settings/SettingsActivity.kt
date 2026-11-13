@@ -13,6 +13,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.wanbo.settings.model.SettingsCategory
+import com.wanbo.settings.panes.AudioPaneController
+import com.wanbo.settings.panes.BluetoothPaneController
+import com.wanbo.settings.panes.WifiPaneController
 import com.wanbo.settings.ui.CategoryRailAdapter
 import com.wanbo.settings.ui.DpadFocusEngine
 import com.wanbo.settings.ui.FocusPane
@@ -39,6 +42,11 @@ class SettingsActivity : AppCompatActivity() {
     /** Deterministic D-pad navigation state engine. */
     lateinit var focusEngine: DpadFocusEngine
         private set
+
+    private var currentMountedCategory: SettingsCategory? = null
+    private var wifiController: WifiPaneController? = null
+    private var bluetoothController: BluetoothPaneController? = null
+    private var audioController: AudioPaneController? = null
 
     /**
      * Initializes the Split-View layout, instantiates the focus engine, and resolves the starting category.
@@ -148,13 +156,68 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /**
-     * Updates the right content pane header and placeholder information for the active category.
+     * Updates the right content pane header and displays the corresponding pane controller.
      *
      * @param category Active category to present.
      */
     private fun updateContentPane(category: SettingsCategory) {
         contentPaneTitle.text = category.title
         contentPaneSubtitle.text = category.subtitle
+        displayCategory(category)
+    }
+
+    /**
+     * Dynamically inflates and mounts the corresponding pane controller into content_pane_body.
+     *
+     * @param category The target SettingsCategory.
+     */
+    fun displayCategory(category: SettingsCategory) {
+        if (currentMountedCategory == category) return
+        currentMountedCategory = category
+
+        detachActiveControllers()
+        contentPaneBody.removeAllViews()
+
+        when (category) {
+            SettingsCategory.WIFI -> {
+                val controller = WifiPaneController(this, contentPaneBody)
+                controller.attach()
+                wifiController = controller
+            }
+            SettingsCategory.BLUETOOTH -> {
+                val controller = BluetoothPaneController(this, contentPaneBody)
+                controller.attach()
+                bluetoothController = controller
+            }
+            SettingsCategory.AUDIO -> {
+                val controller = AudioPaneController(this, contentPaneBody)
+                controller.attach()
+                audioController = controller
+            }
+            else -> {
+                // Empty placeholder for categories handled by subsequent tasks
+            }
+        }
+    }
+
+    /**
+     * Detaches any currently mounted pane controllers and releases system listeners.
+     */
+    private fun detachActiveControllers() {
+        wifiController?.detach()
+        wifiController = null
+        bluetoothController?.detach()
+        bluetoothController = null
+        audioController?.detach()
+        audioController = null
+    }
+
+    /**
+     * Cleans up pane controllers on activity destruction.
+     */
+    override fun onDestroy() {
+        detachActiveControllers()
+        super.onDestroy()
     }
 
     /**
@@ -164,12 +227,9 @@ class SettingsActivity : AppCompatActivity() {
         focusEngine.setFocusPane(FocusPane.RIGHT_CONTENT)
         adapter.setRightPaneFocused(true)
 
-        val focusTarget = if (contentPaneBody.isFocusable) {
-            contentPaneBody
-        } else {
-            val firstFocusable = findFirstFocusable(contentPaneContainer)
-            firstFocusable ?: contentPaneContainer
-        }
+        val firstFocusableInBody = findFirstFocusable(contentPaneBody)
+        val focusTarget = firstFocusableInBody
+            ?: (if (contentPaneBody.isFocusable) contentPaneBody else findFirstFocusable(contentPaneContainer) ?: contentPaneContainer)
 
         focusTarget.requestFocus()
     }
