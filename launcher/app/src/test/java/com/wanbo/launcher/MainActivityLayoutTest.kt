@@ -2,6 +2,7 @@ package com.wanbo.launcher
 
 import com.wanbo.launcher.model.AppItem
 import com.wanbo.launcher.ui.AppCardAdapter
+import com.wanbo.launcher.ui.FavoritesAdapter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -11,8 +12,9 @@ import java.io.File
 
 /**
  * Unit tests validating the tvOS floating cards layout, activity_main.xml layout structure,
- * item_app_card.xml design, AppCardAdapter focus elevation logic and data handling,
- * MainActivity hardware bindings, and strict Zero Emojis compliance.
+ * item_app_card.xml and item_favorite_card.xml design, dual-row Favorites and All Apps docks,
+ * Top Bar hardware bindings and live clock, Ambient backdrop view presence,
+ * FavoritesAdapter and AppCardAdapter focus elevation logic, and strict Zero Emojis compliance.
  */
 class MainActivityLayoutTest {
 
@@ -95,7 +97,7 @@ class MainActivityLayoutTest {
 
     /**
      * Verifies that activity_main.xml exists, defines a dark background,
-     * and sets clipChildren and clipToPadding to false for unclipped focus animations.
+     * contains LinearLayout, and sets clipChildren and clipToPadding to false.
      */
     @Test
     fun testActivityMainXmlExistsAndStructure() {
@@ -104,7 +106,7 @@ class MainActivityLayoutTest {
         assertTrue("activity_main.xml must exist in $layoutDir", mainXml.exists())
 
         val content = mainXml.readText()
-        assertTrue("activity_main.xml must declare <LinearLayout root", content.contains("<LinearLayout"))
+        assertTrue("activity_main.xml must declare <LinearLayout", content.contains("<LinearLayout"))
         assertTrue("activity_main.xml must reference @color/bg_dark", content.contains("@color/bg_dark"))
         assertTrue("activity_main.xml must disable clipChildren", content.contains("android:clipChildren=\"false\""))
         assertTrue("activity_main.xml must disable clipToPadding", content.contains("android:clipToPadding=\"false\""))
@@ -112,7 +114,8 @@ class MainActivityLayoutTest {
 
     /**
      * Verifies that activity_main.xml declares all required widget identifiers:
-     * btnHdmi, btnKeystone, btnSettings, rvFavorites, and clockHero.
+     * ambient_backdrop_view, top_bar_container, btn_hdmi, btn_projection, btn_settings,
+     * clock_view, favorites_recycler_view, all_apps_recycler_view, and backward compatibility IDs.
      */
     @Test
     fun testActivityMainRequiredIds() {
@@ -120,6 +123,17 @@ class MainActivityLayoutTest {
         val mainXml = File(layoutDir, "activity_main.xml")
         val content = mainXml.readText()
 
+        // Task 2 Required UI Identifiers
+        assertTrue("activity_main.xml must define @+id/ambient_backdrop_view", content.contains("@+id/ambient_backdrop_view"))
+        assertTrue("activity_main.xml must define @+id/top_bar_container", content.contains("@+id/top_bar_container"))
+        assertTrue("activity_main.xml must define @+id/btn_hdmi", content.contains("@+id/btn_hdmi"))
+        assertTrue("activity_main.xml must define @+id/btn_projection", content.contains("@+id/btn_projection"))
+        assertTrue("activity_main.xml must define @+id/btn_settings", content.contains("@+id/btn_settings"))
+        assertTrue("activity_main.xml must define @+id/clock_view", content.contains("@+id/clock_view"))
+        assertTrue("activity_main.xml must define @+id/favorites_recycler_view", content.contains("@+id/favorites_recycler_view"))
+        assertTrue("activity_main.xml must define @+id/all_apps_recycler_view", content.contains("@+id/all_apps_recycler_view"))
+
+        // Backward compatibility IDs
         assertTrue("activity_main.xml must define @+id/btnHdmi", content.contains("@+id/btnHdmi"))
         assertTrue("activity_main.xml must define @+id/btnKeystone", content.contains("@+id/btnKeystone"))
         assertTrue("activity_main.xml must define @+id/btnSettings", content.contains("@+id/btnSettings"))
@@ -129,7 +143,8 @@ class MainActivityLayoutTest {
 
     /**
      * Verifies that the Top Bar in activity_main.xml includes clean title,
-     * vector drawables for HDMI, Keystone, Settings, and Wi-Fi, and a minimal TextClock.
+     * translucent frosted glass buttons, vector drawables for HDMI, Keystone, Settings,
+     * Wi-Fi indicator, and live date/time clock.
      */
     @Test
     fun testActivityMainTopBarHardwareButtonsAndDrawables() {
@@ -138,12 +153,16 @@ class MainActivityLayoutTest {
         val content = mainXml.readText()
 
         assertTrue("Top bar must display WanboOS title", content.contains("WanboOS"))
-        assertTrue("btnHdmi must use @drawable/ic_hdmi", content.contains("@drawable/ic_hdmi"))
-        assertTrue("btnKeystone must use @drawable/ic_trapezoid_calibrate", content.contains("@drawable/ic_trapezoid_calibrate"))
-        assertTrue("btnSettings must use @drawable/ic_settings", content.contains("@drawable/ic_settings"))
+        assertTrue("Top bar must define height 56dp", content.contains("56dp"))
+        assertTrue("btn_hdmi must display HDMI label", content.contains("HDMI"))
+        assertTrue("btn_projection must display Projecao label", content.contains("Projecao"))
+        assertTrue("btn_settings must display Ajustes label", content.contains("Ajustes"))
+        assertTrue("Buttons must use @drawable/bg_button_quick", content.contains("@drawable/bg_button_quick"))
+        assertTrue("Top bar must use @drawable/ic_hdmi", content.contains("@drawable/ic_hdmi"))
+        assertTrue("Top bar must use @drawable/ic_trapezoid_calibrate", content.contains("@drawable/ic_trapezoid_calibrate"))
+        assertTrue("Top bar must use @drawable/ic_settings", content.contains("@drawable/ic_settings"))
         assertTrue("Wi-Fi indicator must use @drawable/ic_wifi", content.contains("@drawable/ic_wifi"))
-        assertTrue("Quick buttons must use @drawable/bg_button_quick", content.contains("@drawable/bg_button_quick"))
-        assertTrue("Top bar must contain minimal TextClock", content.contains("clockTopBar"))
+        assertTrue("Top bar must contain live date/time TextClock", content.contains("clock_view"))
     }
 
     /**
@@ -165,7 +184,7 @@ class MainActivityLayoutTest {
 
     /**
      * Verifies that the Favorites section declares the bold uppercase "FAVORITOS" label
-     * with letter spacing 0.1, and horizontal orientation on rvFavorites.
+     * with letter spacing 0.1, and horizontal orientation on rvFavorites and favorites_recycler_view.
      */
     @Test
     fun testActivityMainFavoritesSection() {
@@ -175,7 +194,26 @@ class MainActivityLayoutTest {
 
         assertTrue("Favorites section label must be FAVORITOS", content.contains("FAVORITOS"))
         assertTrue("Favorites section label must have letterSpacing 0.1", content.contains("android:letterSpacing=\"0.1\""))
-        assertTrue("rvFavorites must be horizontal", content.contains("android:orientation=\"horizontal\""))
+        assertTrue("favorites_recycler_view must be horizontal", content.contains("android:orientation=\"horizontal\""))
+    }
+
+    /**
+     * Verifies that the Dual Row Sections (Favorites and All Apps) are declared properly
+     * with their respective section labels and horizontal RecyclerViews.
+     */
+    @Test
+    fun testActivityMainDualRowSections() {
+        val layoutDir = resolveResDir("layout")
+        val mainXml = File(layoutDir, "activity_main.xml")
+        val content = mainXml.readText()
+
+        // Section 1: FAVORITOS
+        assertTrue("Must include FAVORITOS section", content.contains("FAVORITOS"))
+        assertTrue("Must define favorites_recycler_view", content.contains("@+id/favorites_recycler_view"))
+
+        // Section 2: TODOS OS APLICATIVOS
+        assertTrue("Must include TODOS OS APLICATIVOS section", content.contains("TODOS OS APLICATIVOS"))
+        assertTrue("Must define all_apps_recycler_view", content.contains("@+id/all_apps_recycler_view"))
     }
 
     /**
@@ -198,6 +236,41 @@ class MainActivityLayoutTest {
     }
 
     /**
+     * Verifies that item_favorite_card.xml and item_add_favorite_card.xml exist,
+     * use 20dp corner radius squircle styling, and define required card components.
+     */
+    @Test
+    fun testFavoritesCardLayoutsAndSquircleStyling() {
+        val layoutDir = resolveResDir("layout")
+        val favCard = File(layoutDir, "item_favorite_card.xml")
+        val addCard = File(layoutDir, "item_add_favorite_card.xml")
+
+        assertTrue("item_favorite_card.xml must exist", favCard.exists())
+        assertTrue("item_add_favorite_card.xml must exist", addCard.exists())
+
+        val favContent = favCard.readText()
+        assertTrue("Favorite card must define iv_favorite_icon", favContent.contains("@+id/iv_favorite_icon"))
+        assertTrue("Favorite card must define tv_favorite_label", favContent.contains("@+id/tv_favorite_label"))
+        assertTrue("Favorite card must use bg_card_favorite_unfocused", favContent.contains("bg_card_favorite_unfocused"))
+
+        val addContent = addCard.readText()
+        assertTrue("Add card must define iv_add_icon", addContent.contains("@+id/iv_add_icon"))
+        assertTrue("Add card must define tv_add_label", addContent.contains("@+id/tv_add_label"))
+        assertTrue("Add card must display + Adicionar", addContent.contains("+ Adicionar"))
+
+        // Verify squircle drawables declare 20dp radius
+        val drawableDir = resolveResDir("drawable")
+        val unfocusedDrawable = File(drawableDir, "bg_card_favorite_unfocused.xml")
+        val focusedDrawable = File(drawableDir, "bg_card_favorite_focused.xml")
+
+        assertTrue("bg_card_favorite_unfocused.xml must exist", unfocusedDrawable.exists())
+        assertTrue("bg_card_favorite_focused.xml must exist", focusedDrawable.exists())
+
+        assertTrue("Unfocused squircle must have 20dp radius", unfocusedDrawable.readText().contains("20dp"))
+        assertTrue("Focused squircle must have 20dp radius", focusedDrawable.readText().contains("20dp"))
+    }
+
+    /**
      * Verifies the Apple TV style 1.08x focus elevation constants in AppCardAdapter.
      */
     @Test
@@ -207,6 +280,31 @@ class MainActivityLayoutTest {
         assertEquals("ANIMATION_DURATION_MS must be 150L", 150L, AppCardAdapter.ANIMATION_DURATION_MS)
         assertEquals("ELEVATION_FOCUSED_DP must be 8f", 8f, AppCardAdapter.ELEVATION_FOCUSED_DP, 0.001f)
         assertEquals("ELEVATION_UNFOCUSED_DP must be 0f", 0f, AppCardAdapter.ELEVATION_UNFOCUSED_DP, 0.001f)
+    }
+
+    /**
+     * Verifies the Apple TV style 1.08x focus elevation constants and view types in FavoritesAdapter.
+     */
+    @Test
+    fun testFavoritesAdapterConstantsAndOperations() {
+        assertEquals(1.08f, FavoritesAdapter.SCALE_FOCUSED, 0.001f)
+        assertEquals(1.0f, FavoritesAdapter.SCALE_UNFOCUSED, 0.001f)
+        assertEquals(150L, FavoritesAdapter.ANIMATION_DURATION_MS)
+        assertEquals(8f, FavoritesAdapter.ELEVATION_FOCUSED_DP, 0.001f)
+        assertEquals(0f, FavoritesAdapter.ELEVATION_UNFOCUSED_DP, 0.001f)
+
+        assertEquals(0, FavoritesAdapter.VIEW_TYPE_APP)
+        assertEquals(1, FavoritesAdapter.VIEW_TYPE_ADD)
+
+        val app1 = AppItem("com.app.yt", "YouTube")
+        val app2 = AppItem("com.app.nf", "Netflix")
+        val adapter = FavoritesAdapter(listOf(app1, app2))
+
+        // Total count includes favorite items + trailing "+ Adicionar" card
+        assertEquals(3, adapter.itemCount)
+        assertEquals(FavoritesAdapter.VIEW_TYPE_APP, adapter.getItemViewType(0))
+        assertEquals(FavoritesAdapter.VIEW_TYPE_APP, adapter.getItemViewType(1))
+        assertEquals(FavoritesAdapter.VIEW_TYPE_ADD, adapter.getItemViewType(2))
     }
 
     /**
@@ -223,6 +321,7 @@ class MainActivityLayoutTest {
             clickedApp = app
         }
 
+        assertEquals(null, clickedApp)
         assertEquals(2, adapter.itemCount)
         assertEquals(initialList, adapter.getApps())
 
@@ -258,16 +357,21 @@ class MainActivityLayoutTest {
     }
 
     /**
-     * Strictly enforces the Zero Emojis policy across all layout and source files created for Task 5.
+     * Strictly enforces the Zero Emojis policy across all layout and source files.
      */
     @Test
     fun testZeroEmojisInLayoutsAndSourceFiles() {
         val filesToCheck = listOf(
             resolveResDir("layout").let { File(it, "activity_main.xml") },
             resolveResDir("layout").let { File(it, "item_app_card.xml") },
+            resolveResDir("layout").let { File(it, "item_favorite_card.xml") },
+            resolveResDir("layout").let { File(it, "item_add_favorite_card.xml") },
             resolveFile("src/main/java/com/wanbo/launcher/ui/AppCardAdapter.kt"),
+            resolveFile("src/main/java/com/wanbo/launcher/ui/FavoritesAdapter.kt"),
+            resolveFile("src/main/java/com/wanbo/launcher/ui/AmbientBackdropController.kt"),
             resolveFile("src/main/java/com/wanbo/launcher/MainActivity.kt"),
-            resolveFile("src/test/java/com/wanbo/launcher/MainActivityLayoutTest.kt")
+            resolveFile("src/test/java/com/wanbo/launcher/MainActivityLayoutTest.kt"),
+            resolveFile("src/test/java/com/wanbo/launcher/AmbientBackdropControllerTest.kt")
         )
 
         for (file in filesToCheck) {
@@ -284,8 +388,11 @@ class MainActivityLayoutTest {
     fun testKDocCoverageInSourceFiles() {
         val filesToCheck = listOf(
             resolveFile("src/main/java/com/wanbo/launcher/ui/AppCardAdapter.kt"),
+            resolveFile("src/main/java/com/wanbo/launcher/ui/FavoritesAdapter.kt"),
+            resolveFile("src/main/java/com/wanbo/launcher/ui/AmbientBackdropController.kt"),
             resolveFile("src/main/java/com/wanbo/launcher/MainActivity.kt"),
-            resolveFile("src/test/java/com/wanbo/launcher/MainActivityLayoutTest.kt")
+            resolveFile("src/test/java/com/wanbo/launcher/MainActivityLayoutTest.kt"),
+            resolveFile("src/test/java/com/wanbo/launcher/AmbientBackdropControllerTest.kt")
         )
 
         for (file in filesToCheck) {

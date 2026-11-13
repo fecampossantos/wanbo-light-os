@@ -216,15 +216,62 @@ class HardwareController(private val defaultContext: Context? = null) {
         }
 
         /**
+         * Switches the active video input source to HDMI on the projector.
+         * Convenience alias for [launchHdmi] matching Top Bar hardware requirements.
+         *
+         * @param context Context used to dispatch the HDMI intent.
+         * @return True if launched successfully; false otherwise.
+         */
+        @JvmStatic
+        fun switchHdmiInput(context: Context): Boolean {
+            return launchHdmi(context)
+        }
+
+        /**
+         * Launches the Keystone / Trapezoid geometric calibration interface.
+         * Convenience alias for [launchKeystone] matching Top Bar hardware requirements.
+         *
+         * @param context Context used to dispatch the Keystone intent.
+         * @return True if launched successfully; false otherwise.
+         */
+        @JvmStatic
+        fun launchKeystoneCalibration(context: Context): Boolean {
+            return launchKeystone(context)
+        }
+
+        /**
          * Safely launches the Projector / Android TV settings application.
-         * First attempts com.android.tv.settings.MainActivity. If not found, falls back
-         * defensively to platform Settings.ACTION_SETTINGS before showing a Toast.
+         * First attempts com.wanbo.settings, falling back to com.android.tv.settings.MainActivity,
+         * and finally platform Settings.ACTION_SETTINGS before showing a Toast.
          *
          * @param context Context used to invoke startActivity and display Toast notifications.
          * @return True if the activity was launched successfully; false otherwise.
          */
         @JvmStatic
         fun launchSettings(context: Context): Boolean {
+            val pm = context.packageManager
+            val wanboIntent = pm?.getLeanbackLaunchIntentForPackage("com.wanbo.settings")
+                ?: pm?.getLaunchIntentForPackage("com.wanbo.settings")
+            if (wanboIntent != null) {
+                wanboIntent.addFlags(LAUNCH_FLAGS)
+                return try {
+                    context.startActivity(wanboIntent)
+                    true
+                } catch (e: Exception) {
+                    launchTvSettingsFallback(context)
+                }
+            }
+            return launchTvSettingsFallback(context)
+        }
+
+        /**
+         * Fallback dispatcher for Android TV settings when com.wanbo.settings is unavailable.
+         *
+         * @param context Context used to dispatch Android TV settings.
+         * @return True if launched successfully; false otherwise.
+         */
+        @JvmStatic
+        private fun launchTvSettingsFallback(context: Context): Boolean {
             return try {
                 context.startActivity(createSettingsIntent())
                 true

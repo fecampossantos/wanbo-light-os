@@ -22,6 +22,23 @@ class AppCardAdapter(
     private val onAppClick: (AppItem) -> Unit = {}
 ) : RecyclerView.Adapter<AppCardAdapter.AppCardViewHolder>() {
 
+    private var onFocusChanged: ((AppItem, Boolean) -> Unit)? = null
+
+    /**
+     * Secondary constructor supporting focus change callback for ambient glow transitions.
+     *
+     * @param initialApps Initial list of [AppItem] instances to display.
+     * @param onAppClick Callback invoked when an application card is clicked or selected.
+     * @param onFocusChanged Callback invoked when application focus state transitions.
+     */
+    constructor(
+        initialApps: List<AppItem>,
+        onAppClick: (AppItem) -> Unit,
+        onFocusChanged: ((AppItem, Boolean) -> Unit)?
+    ) : this(initialApps, onAppClick) {
+        this.onFocusChanged = onFocusChanged
+    }
+
     companion object {
         /** Scale factor applied when the card gains D-pad focus (tvOS elevation effect). */
         const val SCALE_FOCUSED: Float = 1.08f
@@ -61,6 +78,15 @@ class AppCardAdapter(
      * @return Current list of [AppItem] instances.
      */
     fun getApps(): List<AppItem> = apps
+
+    /**
+     * Configures the focus change listener callback for ambient glow and analytics.
+     *
+     * @param listener Callback receiving the focused [AppItem] and focus boolean state.
+     */
+    fun setOnFocusChangeListener(listener: (AppItem, Boolean) -> Unit) {
+        this.onFocusChanged = listener
+    }
 
     /**
      * Inflates the tvOS card item layout [R.layout.item_app_card] and constructs the ViewHolder.
@@ -154,6 +180,9 @@ class AppCardAdapter(
 
             itemView.setOnFocusChangeListener { v, hasFocus ->
                 applyFocusAnimation(v, hasFocus)
+                if (hasFocus) {
+                    onFocusChanged?.invoke(app, true)
+                }
             }
         }
     }

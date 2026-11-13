@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WanboLightOS Trailing Add Favorite Action Card Layout.
+  Squircle card with 20dp corner radius, 1.08x D-pad focus scaling, and + Adicionar label.
+  Zero emojis strictly enforced.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/card_add_favorite_root"
+    android:layout_width="140dp"
+    android:layout_height="96dp"
+    android:layout_marginEnd="16dp"
+    android:background="@drawable/bg_card_favorite_unfocused"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/iv_add_icon"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_add" />
+
+    <TextView
+        android:id="@+id/tv_add_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:text="+ Adicionar"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+</LinearLayout>
