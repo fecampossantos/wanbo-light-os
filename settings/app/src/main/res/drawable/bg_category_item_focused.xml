@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  tvOS Focused state background for settings category items.
+  Features cyan highlight rim glow border and translucent background.
+  Strictly ZERO emojis.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#3338BDF8" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/cyan_highlight" />
+</shape>

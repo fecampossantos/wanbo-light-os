@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  tvOS Normal / Unfocused state background for settings category items.
+  Subtle translucent glass card surface at 40% opacity.
+  Strictly ZERO emojis.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#661A1E29" />
+</shape>

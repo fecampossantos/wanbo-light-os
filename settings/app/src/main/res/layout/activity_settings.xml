@@ -1,15 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  tvOS Split-View layout for WanboSettings.
+  Left column: 340dp translucent frosted glass category navigation rail.
+  Right column: Dynamic content pane container for category screens.
+  Strictly ZERO emojis.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/deep_obsidian">
+    android:background="@color/deep_obsidian"
+    android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/settings_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:text="@string/app_name"
-        android:textColor="@color/white"
-        android:textSize="24sp" />
-</FrameLayout>
+    <!-- Left Rail Column (340dp width) -->
+    <LinearLayout
+        android:id="@+id/category_rail_container"
+        android:layout_width="340dp"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_category_rail"
+        android:orientation="vertical"
+        android:paddingTop="32dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:id="@+id/settings_header_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:text="@string/app_name"
+            android:textColor="@color/white"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/settings_header_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="2dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="20dp"
+            android:text="WanboLightOS"
+            android:textColor="@color/cool_slate"
+            android:textSize="13sp" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/category_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:descendantFocusability="afterDescendants"
+            android:scrollbars="none" />
+    </LinearLayout>
+
+    <!-- Right Content Pane Column (fills remaining width) -->
+    <FrameLayout
+        android:id="@+id/content_pane_container"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@color/deep_obsidian"
+        android:clickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="false"
+        android:paddingStart="48dp"
+        android:paddingTop="36dp"
+        android:paddingEnd="48dp"
+        android:paddingBottom="36dp">
+
+        <LinearLayout
+            android:id="@+id/content_pane_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/content_pane_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/white"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/content_pane_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/cool_slate"
+                android:textSize="14sp" />
+
+            <FrameLayout
+                android:id="@+id/content_pane_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="false" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>
