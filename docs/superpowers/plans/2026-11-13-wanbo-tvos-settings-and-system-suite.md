@@ -214,42 +214,55 @@ git commit -m "feat(launcher): add FavoriteAppsManager and filter LiveTV from ap
 
 ---
 
-### Task 2: Launcher UI - Top Bar & Dual Row Sections (Favorites + All Apps)
+### Task 2: Launcher UI - Top Bar, Dual Row Sections & Dynamic Ambient Glow
 
 **Files:**
 - Modify: [activity_main.xml](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/res/layout/activity_main.xml)
 - Modify: [MainActivity.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/MainActivity.kt)
 - Modify: [AppCardAdapter.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/ui/AppCardAdapter.kt)
 - Create: [FavoritesAdapter.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/ui/FavoritesAdapter.kt)
+- Create: [AmbientBackdropController.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/ui/AmbientBackdropController.kt)
 - Create: [item_favorite_card.xml](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/res/layout/item_favorite_card.xml)
 - Create: [item_add_favorite_card.xml](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/res/layout/item_add_favorite_card.xml)
+- Test: [AmbientBackdropControllerTest.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/test/java/com/wanbo/launcher/AmbientBackdropControllerTest.kt)
 
 **Interfaces:**
 - Consumes: `FavoriteAppsManager`, `HardwareController`, `AppsRepository`
-- Produces: Updated `MainActivity` hosting Top Bar (HDMI, Projection, Settings, Wi-Fi, Clock), Favorites Horizontal RecyclerView, and All Apps Grid RecyclerView.
+- Produces: Updated `MainActivity` hosting Top Bar, Favorites Horizontal RecyclerView, All Apps Grid RecyclerView, and `AmbientBackdropController` interpolating GPU radial gradients on focus change.
 
-- [ ] **Step 1: Write UI layout test**
+- [ ] **Step 1: Write UI layout & AmbientBackdropController unit test**
 
-Modify [MainActivityLayoutTest.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/test/java/com/wanbo/launcher/MainActivityLayoutTest.kt) to assert the presence of `top_bar_container`, `btn_hdmi`, `btn_projection`, `btn_settings`, `clock_view`, `favorites_recycler_view`, and `all_apps_recycler_view`.
+Create [AmbientBackdropControllerTest.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/test/java/com/wanbo/launcher/AmbientBackdropControllerTest.kt):
+Validates that package names map to expected atmospheric ambient colors (e.g. YouTube -> dark crimson, Disney+ -> dark royal blue, Netflix -> dark wine red) and fallback to dark slate for unknown apps.
+
+Modify [MainActivityLayoutTest.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/test/java/com/wanbo/launcher/MainActivityLayoutTest.kt) to assert the presence of `ambient_backdrop_view`, `top_bar_container`, `btn_hdmi`, `btn_projection`, `btn_settings`, `clock_view`, `favorites_recycler_view`, and `all_apps_recycler_view`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run test asserting missing layout IDs.
+Run test asserting missing controller and layout IDs.
 Expected: FAIL.
 
-- [ ] **Step 3: Implement Layout and Adapters**
+- [ ] **Step 3: Implement Layout, Adapters, and AmbientBackdropController**
+
+Create [AmbientBackdropController.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/ui/AmbientBackdropController.kt):
+- Manages an atmospheric `GradientDrawable` placed behind all launcher views.
+- Maps package names to rich, dark ambient tones (`Color.rgb` values).
+- When a card receives focus, animates the radial gradient center and color across 300ms using `ValueAnimator` with `ArgbEvaluator` (zero RAM overhead, 100% GPU rendered).
 
 Update [activity_main.xml](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/res/layout/activity_main.xml):
+- `View` (`ambient_backdrop_view`) spanning the entire screen as bottom background layer.
 - Top Bar (56dp height): Left pills for HDMI, Projection, Settings; Right indicators for Wi-Fi and Clock ("Sex, 13 Nov | 20:45").
 - Middle Section: "FAVORITOS" label and `androidx.recyclerview.widget.RecyclerView` (`favorites_recycler_view`) with horizontal linear layout.
 - Lower Section: "TODOS OS APLICATIVOS" label and `androidx.recyclerview.widget.RecyclerView` (`all_apps_recycler_view`) with 5-column grid or horizontal scroll.
 
 Create [FavoritesAdapter.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/ui/FavoritesAdapter.kt):
 - Handles favorite `AppItem` cards and a special "+ Adicionar" trailing card.
+- On focus change, notifies `AmbientBackdropController.onAppFocused(appItem)`.
 - Clicking "+ Adicionar" opens a modal selection dialog listing unpinned installed apps to toggle.
 - Long-pressing any favorite item opens a quick prompt to "Desafixar dos Favoritos".
 
 Update [MainActivity.kt](file:///C:/Users/fecam/wanbo-light-os/launcher/app/src/main/java/com/wanbo/launcher/MainActivity.kt):
+- Initialize `AmbientBackdropController` with `ambient_backdrop_view`.
 - Connect Top Bar click listeners:
   - `btn_hdmi`: Calls `HardwareController.switchHdmiInput()`.
   - `btn_projection`: Calls `HardwareController.launchKeystoneCalibration()`.
