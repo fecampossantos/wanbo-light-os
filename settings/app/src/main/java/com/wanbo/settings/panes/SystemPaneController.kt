@@ -422,6 +422,7 @@ class SystemPaneController(
         try {
             val portValue = if (newTarget) "5555" else "-1"
             Runtime.getRuntime().exec(arrayOf("setprop", "service.adb.tcp.port", portValue))
+            Runtime.getRuntime().exec(arrayOf("setprop", "ctl.restart", "adbd"))
         } catch (_: Exception) {
         }
 

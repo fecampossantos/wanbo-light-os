@@ -303,6 +303,10 @@ class AppsPaneController(
      * @param app Target application item.
      */
     private fun executeForceStop(app: ManagedAppItem) {
+        if (isProtectedHal(app.packageName)) {
+            Toast.makeText(activity, "Componentes criticos de hardware nao podem ser finalizados", Toast.LENGTH_SHORT).show()
+            return
+        }
         try {
             val am = activity.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
             am?.killBackgroundProcesses(app.packageName)
