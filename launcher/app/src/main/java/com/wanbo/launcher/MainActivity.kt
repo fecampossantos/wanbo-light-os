@@ -97,15 +97,15 @@ class MainActivity : Activity() {
         // HDMI input quick button (primary: btn_hdmi, fallback: btnHdmi)
         val btnHdmi = findViewById<View>(R.id.btn_hdmi) ?: findViewById<View>(R.id.btnHdmi)
         btnHdmi?.setOnClickListener {
+            // Invokes HardwareController.switchHdmiInput (delegates to HardwareController.launchHdmi)
             HardwareController.switchHdmiInput(this)
-            HardwareController.launchHdmi(this)
         }
 
         // Keystone / Projection quick button (primary: btn_projection, fallback: btnKeystone)
         val btnKeystone = findViewById<View>(R.id.btn_projection) ?: findViewById<View>(R.id.btnKeystone)
         btnKeystone?.setOnClickListener {
+            // Invokes HardwareController.launchKeystoneCalibration (delegates to HardwareController.launchKeystone)
             HardwareController.launchKeystoneCalibration(this)
-            HardwareController.launchKeystone(this)
         }
 
         // System Settings quick button (primary: btn_settings, fallback: btnSettings)
