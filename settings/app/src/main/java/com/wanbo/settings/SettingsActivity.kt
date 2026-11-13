@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.wanbo.settings.model.SettingsCategory
 import com.wanbo.settings.panes.AudioPaneController
 import com.wanbo.settings.panes.BluetoothPaneController
+import com.wanbo.settings.panes.ProjectionPaneController
 import com.wanbo.settings.panes.WifiPaneController
 import com.wanbo.settings.ui.CategoryRailAdapter
 import com.wanbo.settings.ui.DpadFocusEngine
@@ -47,6 +48,7 @@ class SettingsActivity : AppCompatActivity() {
     private var wifiController: WifiPaneController? = null
     private var bluetoothController: BluetoothPaneController? = null
     private var audioController: AudioPaneController? = null
+    private var projectionController: ProjectionPaneController? = null
 
     /**
      * Initializes the Split-View layout, instantiates the focus engine, and resolves the starting category.
@@ -189,6 +191,11 @@ class SettingsActivity : AppCompatActivity() {
                 controller.attach()
                 bluetoothController = controller
             }
+            SettingsCategory.PROJECTION -> {
+                val controller = ProjectionPaneController(this, contentPaneBody)
+                controller.attach()
+                projectionController = controller
+            }
             SettingsCategory.AUDIO -> {
                 val controller = AudioPaneController(this, contentPaneBody)
                 controller.attach()
@@ -210,6 +217,8 @@ class SettingsActivity : AppCompatActivity() {
         bluetoothController = null
         audioController?.detach()
         audioController = null
+        projectionController?.detach()
+        projectionController = null
     }
 
     /**
@@ -268,8 +277,8 @@ class SettingsActivity : AppCompatActivity() {
 
             var canNavigateLeftInsidePane = false
             if (isInRightPane && event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && currentFocusView != null) {
-                // Allow interactive horizontal slider cards (e.g. Master Volume) to handle DPAD_LEFT directly
-                if (currentFocusView.id == R.id.card_master_volume) {
+                // Allow interactive horizontal slider cards (e.g. Master Volume, Screen Zoom) to handle DPAD_LEFT directly
+                if (currentFocusView.id == R.id.card_master_volume || currentFocusView.id == R.id.card_screen_zoom) {
                     if (super.dispatchKeyEvent(event)) {
                         return true
                     }
