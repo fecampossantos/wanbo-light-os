@@ -6,3 +6,10 @@ __pycache__/
 *.pyc
 *.class
 task-*.md
+*.rar
+*.bin
+*.img
+dist/
+T2MAX-Z9-EN-20220616/
+WanboLauncher.apk
+os-pipeline/tools/

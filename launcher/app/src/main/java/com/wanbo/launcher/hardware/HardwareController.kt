@@ -224,6 +224,7 @@ class HardwareController(private val defaultContext: Context? = null) {
      * @param context Optional override context. If null, uses the instance default context.
      * @return True if launched successfully, false otherwise.
      */
+    @JvmName("instanceLaunchKeystone")
     fun launchKeystone(context: Context? = defaultContext): Boolean {
         val targetContext = context ?: defaultContext ?: return false
         return Companion.launchKeystone(targetContext)
@@ -235,6 +236,7 @@ class HardwareController(private val defaultContext: Context? = null) {
      * @param context Optional override context. If null, uses the instance default context.
      * @return True if launched successfully, false otherwise.
      */
+    @JvmName("instanceLaunchHdmi")
     fun launchHdmi(context: Context? = defaultContext): Boolean {
         val targetContext = context ?: defaultContext ?: return false
         return Companion.launchHdmi(targetContext)
@@ -246,6 +248,7 @@ class HardwareController(private val defaultContext: Context? = null) {
      * @param context Optional override context. If null, uses the instance default context.
      * @return True if launched successfully, false otherwise.
      */
+    @JvmName("instanceLaunchSettings")
     fun launchSettings(context: Context? = defaultContext): Boolean {
         val targetContext = context ?: defaultContext ?: return false
         return Companion.launchSettings(targetContext)
@@ -256,6 +259,7 @@ class HardwareController(private val defaultContext: Context? = null) {
      *
      * @return Explicit Intent configured with ComponentName and FLAG_ACTIVITY_NEW_TASK.
      */
+    @JvmName("instanceCreateKeystoneIntent")
     fun createKeystoneIntent(): Intent = Companion.createKeystoneIntent()
 
     /**
@@ -263,6 +267,7 @@ class HardwareController(private val defaultContext: Context? = null) {
      *
      * @return Explicit Intent configured with ComponentName and FLAG_ACTIVITY_NEW_TASK.
      */
+    @JvmName("instanceCreateHdmiIntent")
     fun createHdmiIntent(): Intent = Companion.createHdmiIntent()
 
     /**
@@ -270,5 +275,6 @@ class HardwareController(private val defaultContext: Context? = null) {
      *
      * @return Explicit Intent configured with ComponentName and FLAG_ACTIVITY_NEW_TASK.
      */
+    @JvmName("instanceCreateSettingsIntent")
     fun createSettingsIntent(): Intent = Companion.createSettingsIntent()
 }
