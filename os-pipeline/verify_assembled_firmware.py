@@ -7,6 +7,11 @@ import subprocess
 import zlib
 
 def main():
+    """
+    Main entry point for firmware verification.
+
+    @returns {None}
+    """
     fn = "build/WanboLightOS_v1.0.bin"
     total_sz = os.path.getsize(fn)
     print(f"[i] Checking firmware: {fn} ({total_sz:,} bytes)")

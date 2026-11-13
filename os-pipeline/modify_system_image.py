@@ -53,9 +53,8 @@ def apply_debloat(img_path: str):
     @param img_path: Path to ext4 image file.
     """
     apps_to_remove = [
-        # /system/app bloatware
+        # /system/app bloatware (TyyLauncher preserved for Keystone & Projection Mode HAL)
         "/system/app/TV_OPEN_LAUNCHER_WHALE-zvt_mtk9255_p_prod",
-        "/system/app/TyyLauncher",
         "/system/app/CleanCacheUtil",
         "/system/app/MemoryClean",
         "/system/app/Store_t_release_3.0.7_ZY_MTKWTV_3S",
@@ -63,12 +62,19 @@ def apply_debloat(img_path: str):
         "/system/app/dp-provider-Zhiyuan9255_2K_release_1.0.5",
         "/system/app/WFDSinkTest",
         "/system/app/PrintSpooler",
+        "/system/app/EShareServer",
+        "/system/app/EAirPlay",
+        "/system/app/EDLNA",
+        # /system/product/app bloatware
+        "/system/product/app/MLocalMM2",
         # /system/priv-app bloatware
         "/system/priv-app/Tubesky",
         "/system/priv-app/LiveTVSetupWizard",
         "/system/priv-app/GoogleContactsSyncAdapter",
         "/system/priv-app/CalendarProvider",
-        "/system/priv-app/ContactsProvider"
+        "/system/priv-app/ContactsProvider",
+        "/system/priv-app/TvSettingsPlus",
+        "/system/priv-app/com.android.tv.settings"
     ]
     print("[i] Applying debloat removals...")
     for target in apps_to_remove:
@@ -88,11 +94,67 @@ def inject_wanbo_launcher(apk_host_path: str, img_path: str):
     # Create directory
     run_debugfs(f"mkdir {target_dir}", img_path, write=True)
     run_debugfs(f"ea_set {target_dir} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} mode 040755", img_path, write=True)
+    run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
 
     # Write APK
     run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
     run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
+    run_debugfs(f"sif {target_apk} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} gid 0", img_path, write=True)
     print("  WanboLauncher.apk installed successfully.")
+
+def inject_wanbo_settings(apk_host_path: str, img_path: str):
+    """
+    Inject WanboSettings.apk into /system/priv-app/WanboSettings.
+    @param apk_host_path: Host path to compiled WanboSettings.apk.
+    @param img_path: Path to ext4 image file.
+    """
+    print("[i] Injecting WanboSettings into /system/priv-app/WanboSettings/...")
+    target_dir = "/system/priv-app/WanboSettings"
+    target_apk = f"{target_dir}/WanboSettings.apk"
+    
+    # Create directory
+    run_debugfs(f"mkdir {target_dir}", img_path, write=True)
+    run_debugfs(f"ea_set {target_dir} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} mode 040755", img_path, write=True)
+    run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
+
+    # Write APK
+    run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
+    run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
+    run_debugfs(f"sif {target_apk} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} gid 0", img_path, write=True)
+    print("  WanboSettings.apk installed successfully.")
+
+def inject_material_files(apk_host_path: str, img_path: str):
+    """
+    Inject MaterialFiles.apk into /system/app/MaterialFiles.
+    @param apk_host_path: Host path to MaterialFiles.apk.
+    @param img_path: Path to ext4 image file.
+    """
+    print("[i] Injecting MaterialFiles into /system/app/MaterialFiles/...")
+    target_dir = "/system/app/MaterialFiles"
+    target_apk = f"{target_dir}/MaterialFiles.apk"
+    
+    # Create directory
+    run_debugfs(f"mkdir {target_dir}", img_path, write=True)
+    run_debugfs(f"ea_set {target_dir} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} mode 040755", img_path, write=True)
+    run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
+
+    # Write APK
+    run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
+    run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
+    run_debugfs(f"sif {target_apk} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} gid 0", img_path, write=True)
+    print("  MaterialFiles.apk installed successfully.")
 
 def update_build_prop(patch_file: str, img_path: str):
     """
@@ -148,6 +210,9 @@ def update_build_prop(patch_file: str, img_path: str):
     run_debugfs("rm /system/build.prop", img_path, write=True)
     run_debugfs(f"write {tmp_new} /system/build.prop", img_path, write=True)
     run_debugfs("ea_set /system/build.prop security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs("sif /system/build.prop mode 0100644", img_path, write=True)
+    run_debugfs("sif /system/build.prop uid 0", img_path, write=True)
+    run_debugfs("sif /system/build.prop gid 0", img_path, write=True)
     print("  /system/build.prop updated and patched successfully.")
 
 def main():
@@ -156,6 +221,8 @@ def main():
     """
     img_path = "/mnt/c/Users/fecam/wanbo-light-os/build/test_system_raw.img"
     apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboLauncher.apk"
+    settings_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboSettings.apk"
+    material_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/MaterialFiles.apk"
     patch_path = "/mnt/c/Users/fecam/wanbo-light-os/os-pipeline/patches/build.prop.patch"
 
     if not os.path.exists(img_path):
@@ -163,7 +230,12 @@ def main():
         sys.exit(1)
 
     apply_debloat(img_path)
-    inject_wanbo_launcher(apk_path, img_path)
+    if os.path.exists(apk_path):
+        inject_wanbo_launcher(apk_path, img_path)
+    if os.path.exists(settings_apk_path):
+        inject_wanbo_settings(settings_apk_path, img_path)
+    if os.path.exists(material_apk_path):
+        inject_material_files(material_apk_path, img_path)
     update_build_prop(patch_path, img_path)
 
     print("[i] Checking filesystem integrity with e2fsck...")

@@ -24,3 +24,7 @@ ro.hwui.renderer=opengl
 
 # ZRAM LZ4 Swap Configuration
 ro.zram.mark_idle_delay_mins=60
+
+# Priv-app permissions enforcement bypass for system image customization
+ro.control_privapp_permissions=disable
+

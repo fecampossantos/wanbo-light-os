@@ -28,6 +28,8 @@ show_help() {
     echo "Options:"
     echo "  --dry-run          Simulate pipeline without modifying files or repacking."
     echo "  --launcher-apk     Explicit path to compiled WanboLauncher APK."
+    echo "  --settings-apk     Explicit path to compiled WanboSettings APK."
+    echo "  --material-files-apk Explicit path to MaterialFiles APK."
     echo "  --aptoide-apk      Explicit path to AptoideTV APK."
     echo "  --debloat-list     Explicit path to debloat-list.txt."
     echo "  --build-prop-patch Explicit path to build.prop.patch."

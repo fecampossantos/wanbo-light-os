@@ -41,14 +41,23 @@ def read_ext4_allocation_bitmap(raw_path: str):
 
     return alloc_map, s_blocks_count, blk_sz
 
-def calculate_chunk_boundaries_ext4(alloc_map: bytearray, tot_blks: int, per_chunk_target: int = 22800):
+def calculate_chunk_boundaries_ext4(alloc_map: bytearray, tot_blks: int):
     """
     Compute 10 chunk boundaries based on allocated block density.
+    Ensures slot 9 (max ~32.48 MB) never overflows by distributing blocks across slots 0..8.
     @param alloc_map: Bytearray where 1 indicates allocated block and 0 indicates free.
     @param tot_blks: Total blocks in partition (384,000).
-    @param per_chunk_target: Number of allocated blocks targeted for chunks 0 through 8.
     @return: List of 10 tuples (start_blk, end_blk).
     """
+    total_alloc = sum(alloc_map)
+    max_chunk9_blocks = 7500
+    if total_alloc > max_chunk9_blocks:
+        per_chunk_target = (total_alloc - max_chunk9_blocks + 8) // 9
+    else:
+        per_chunk_target = (total_alloc + 9) // 10
+
+    per_chunk_target = min(per_chunk_target, 25000)
+
     boundaries = []
     cur_blk = 0
     start_blk = 0
@@ -153,15 +162,28 @@ def update_header_script(orig_script: str, chunk_sizes: list) -> str:
 
     return "\n".join(new_lines) + "\n"
 
-def assemble_firmware(stock_bin_path: str, raw_img_path: str, output_bin_path: str):
+def assemble_firmware(stock_bin_path: str, raw_img_path: str, output_bin_path: str, tvconfig_path: str = None):
     """
     Assemble the complete flashable MStar firmware binary.
     @param stock_bin_path: Path to original stock T9255B_350R00_CC.bin.
     @param raw_img_path: Path to modified test_system_raw.img.
     @param output_bin_path: Path to destination T9255B_350R00_CC.bin.
+    @param tvconfig_path: Optional path to modified tvconfig.img filesystem.
     """
     print(f"[i] Copying stock base firmware from {stock_bin_path} to {output_bin_path}...")
     shutil.copyfile(stock_bin_path, output_bin_path)
+
+    if tvconfig_path and os.path.exists(tvconfig_path):
+        print(f"[i] Injecting patched tvconfig partition from {tvconfig_path}...")
+        tvconfig_off = 0x804000
+        tvconfig_size = 0x2000000
+        with open(tvconfig_path, "rb") as f_tv, open(output_bin_path, "r+b") as f_out:
+            data = f_tv.read()
+            if len(data) != tvconfig_size:
+                raise ValueError(f"tvconfig image size ({len(data)}) must be exactly {tvconfig_size} bytes!")
+            f_out.seek(tvconfig_off)
+            f_out.write(data)
+        print(f"  tvconfig injected at offset 0x{tvconfig_off:x} ({len(data):,} bytes).")
 
     print("[i] Reading ext4 block allocation bitmap...")
     alloc_map, tot_blks, blk_sz = read_ext4_allocation_bitmap(raw_img_path)
@@ -169,7 +191,7 @@ def assemble_firmware(stock_bin_path: str, raw_img_path: str, output_bin_path: s
     print(f"  Ext4 total blocks: {tot_blks}, Allocated: {total_alloc} ({total_alloc * blk_sz / 1024 / 1024:.2f} MB)")
 
     print("[i] Computing optimal chunk boundaries for 10 slots...")
-    boundaries = calculate_chunk_boundaries_ext4(alloc_map, tot_blks, per_chunk_target=22800)
+    boundaries = calculate_chunk_boundaries_ext4(alloc_map, tot_blks)
 
     offsets = [
         0x1130e000, 0x1770e000, 0x1db0e000, 0x23f0e000, 0x2a30e000,
@@ -258,11 +280,19 @@ def assemble_firmware(stock_bin_path: str, raw_img_path: str, output_bin_path: s
     print(f"  Total size: {final_size:,} bytes (matches factory size: {final_size == 1601388576})")
 
 def main():
-    stock_bin = "T2MAX-Z9-EN-20220616/T9255B_350R00_CC.bin"
+    """
+    Main entry point for firmware assembly script.
+
+    @returns {None}
+    """
+    stock_bin = "T2MAX-Z9-EN-20220616/T9255B_350R00_CC.stock.bin"
+    if not os.path.exists(stock_bin):
+        stock_bin = "T2MAX-Z9-EN-20220616/T9255B_350R00_CC.bin"
     raw_img = "build/test_system_raw.img"
     output_bin = "build/WanboLightOS_v1.0.bin"
+    tvconfig_img = None
 
-    assemble_firmware(stock_bin, raw_img, output_bin)
+    assemble_firmware(stock_bin, raw_img, output_bin, tvconfig_img)
 
 if __name__ == "__main__":
     main()

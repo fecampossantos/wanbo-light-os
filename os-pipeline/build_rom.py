@@ -10,7 +10,7 @@ Orchestrates the 9-step modification pipeline:
   Step 4: Mounts/extracts system_raw.img.
   Step 5: Applies debloat-list.txt with robust glob/fnmatch wildcard expansion.
   Step 6: Verifies critical hardware safety blacklist is NEVER touched.
-  Step 7: Injects compiled WanboLauncher.apk into priv-app/WanboLauncher/ and AptoideTV.apk into app/AptoideTV/.
+  Step 7: Injects compiled WanboLauncher.apk into priv-app/WanboLauncher/, WanboSettings.apk into priv-app/WanboSettings/, AptoideTV.apk into priv-app/AptoideTV/, and MaterialFiles.apk into app/MaterialFiles/.
   Step 8: Appends build.prop.patch to system/build.prop.
   Step 9: Re-converts to sparse image (img2simg) and re-packs MStar binary into flashable USB firmware.
 
@@ -41,8 +41,8 @@ CRITICAL_HARDWARE_BLACKLIST: List[str] = [
     "com.mediatek.autopair",
     "loadingequalizer",
     "com.mediatek.loadingequalizer",
-    "tv.settings",
-    "com.android.tv.settings",
+    "tyylauncher",
+    "com.chijimlee.tyylauncher",
     "kxtj2server",
     "hotkey.dispatcher",
 ]
@@ -53,13 +53,31 @@ DEFAULT_FALLBACK_LAUNCHER_PATHS = [
     "launcher/app/build/outputs/apk/debug/app-debug.apk",
     "launcher/build/outputs/apk/release/app-release.apk",
     "launcher/build/outputs/apk/debug/app-debug.apk",
+    "build/WanboLauncher.apk",
     "launcher/WanboLauncher.apk",
     "WanboLauncher.apk",
+]
+DEFAULT_SETTINGS_REL_PATH = "settings/app/build/outputs/apk/release/app-release.apk"
+DEFAULT_FALLBACK_SETTINGS_PATHS = [
+    "settings/app/build/outputs/apk/debug/app-debug.apk",
+    "settings/build/outputs/apk/release/app-release.apk",
+    "settings/build/outputs/apk/debug/app-debug.apk",
+    "build/WanboSettings.apk",
+    "settings/WanboSettings.apk",
+    "WanboSettings.apk",
+]
+DEFAULT_MATERIAL_FILES_REL_PATHS = [
+    "os-pipeline/apks/MaterialFiles.apk",
+    "tools/apks/MaterialFiles.apk",
+    "apks/MaterialFiles.apk",
+    "build/MaterialFiles.apk",
+    "MaterialFiles.apk",
 ]
 DEFAULT_APTOIDE_REL_PATHS = [
     "os-pipeline/apks/AptoideTV.apk",
     "tools/apks/AptoideTV.apk",
     "apks/AptoideTV.apk",
+    "build/AptoideTV.apk",
     "AptoideTV.apk",
 ]
 
@@ -79,11 +97,13 @@ class BuildConfiguration:
     """Configuration options for firmware build pipeline execution."""
     input_fw: Path
     output_fw: Path
-    launcher_apk: Optional[Path]
-    aptoide_apk: Optional[Path]
-    debloat_list: Path
-    build_prop_patch: Path
-    work_dir: Path
+    launcher_apk: Optional[Path] = None
+    settings_apk: Optional[Path] = None
+    material_files_apk: Optional[Path] = None
+    aptoide_apk: Optional[Path] = None
+    debloat_list: Optional[Path] = None
+    build_prop_patch: Optional[Path] = None
+    work_dir: Optional[Path] = None
     dry_run: bool = False
     verbose: bool = False
     keep_work_dir: bool = False
@@ -353,6 +373,55 @@ def find_launcher_apk(explicit_path: Optional[Path] = None, repo_root: Optional[
     return None
 
 
+def find_settings_apk(explicit_path: Optional[Path] = None, repo_root: Optional[Path] = None) -> Optional[Path]:
+    """
+    Locates the compiled WanboSettings APK from explicit path or standard build locations.
+
+    @param {Optional[Path]} explicit_path - User-supplied path via CLI.
+    @param {Optional[Path]} repo_root - Root directory of the repository.
+    @returns {Optional[Path]} Path to existing settings APK or None if not found.
+    """
+    if explicit_path:
+        if explicit_path.exists():
+            return explicit_path.resolve()
+        return None
+
+    root = repo_root or get_repo_root()
+
+    primary = root / DEFAULT_SETTINGS_REL_PATH
+    if primary.exists():
+        return primary.resolve()
+
+    for fallback in DEFAULT_FALLBACK_SETTINGS_PATHS:
+        fallback_path = root / fallback
+        if fallback_path.exists():
+            return fallback_path.resolve()
+
+    return None
+
+
+def find_material_files_apk(explicit_path: Optional[Path] = None, repo_root: Optional[Path] = None) -> Optional[Path]:
+    """
+    Locates the MaterialFiles APK from explicit path or standard storage locations.
+
+    @param {Optional[Path]} explicit_path - User-supplied path via CLI.
+    @param {Optional[Path]} repo_root - Root directory of the repository.
+    @returns {Optional[Path]} Path to existing MaterialFiles APK or None if not found.
+    """
+    if explicit_path:
+        if explicit_path.exists():
+            return explicit_path.resolve()
+        return None
+
+    root = repo_root or get_repo_root()
+    for rel_path in DEFAULT_MATERIAL_FILES_REL_PATHS:
+        candidate = root / rel_path
+        if candidate.exists():
+            return candidate.resolve()
+
+    return None
+
+
 def find_aptoide_apk(explicit_path: Optional[Path] = None, repo_root: Optional[Path] = None) -> Optional[Path]:
     """
     Locates the AptoideTV APK from explicit path or standard storage locations.
@@ -390,10 +459,10 @@ def validate_prerequisites(config: BuildConfiguration) -> None:
             "Please specify a valid firmware file via --input-fw or positional argument."
         )
 
-    if not config.debloat_list.exists():
+    if config.debloat_list and not config.debloat_list.exists():
         raise FileNotFoundError(f"Debloat specification file not found: {config.debloat_list}")
 
-    if not config.build_prop_patch.exists():
+    if config.build_prop_patch and not config.build_prop_patch.exists():
         raise FileNotFoundError(f"build.prop patch file not found: {config.build_prop_patch}")
 
     resolved_launcher = find_launcher_apk(config.launcher_apk)
@@ -408,6 +477,26 @@ def validate_prerequisites(config: BuildConfiguration) -> None:
         log_info(f"Validated launcher APK: {config.launcher_apk}", config.verbose)
     else:
         log_info("[DRY-RUN] Launcher APK validation simulated.", config.verbose)
+
+    resolved_settings = find_settings_apk(config.settings_apk)
+    if not config.dry_run and not resolved_settings:
+        raise FileNotFoundError(
+            f"Compiled Wanbo Settings APK not found at {config.settings_apk or DEFAULT_SETTINGS_REL_PATH}. "
+            "Please build the settings app first via 'make settings' or specify --settings-apk."
+        )
+
+    if resolved_settings:
+        config.settings_apk = resolved_settings
+        log_info(f"Validated settings APK: {config.settings_apk}", config.verbose)
+    else:
+        log_info("[DRY-RUN] Settings APK validation simulated.", config.verbose)
+
+    resolved_material = find_material_files_apk(config.material_files_apk)
+    if resolved_material:
+        config.material_files_apk = resolved_material
+        log_info(f"Validated MaterialFiles APK: {config.material_files_apk}", config.verbose)
+    else:
+        log_warn("MaterialFiles APK not found at standard paths. MaterialFiles injection will be skipped.")
 
     resolved_aptoide = find_aptoide_apk(config.aptoide_apk)
     if resolved_aptoide:
@@ -562,23 +651,30 @@ def extract_system_image(raw_img: Path, extract_dir: Path, dry_run: bool = False
 
 def inject_packages(
     system_root: Path,
-    launcher_apk: Optional[Path],
+    launcher_apk: Optional[Path] = None,
+    settings_apk: Optional[Path] = None,
+    material_files_apk: Optional[Path] = None,
     aptoide_apk: Optional[Path] = None,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> Dict[str, Path]:
     """
-    Executes Step 7: Injects compiled WanboLauncher.apk into priv-app/WanboLauncher/ (0644)
-    and AptoideTV.apk into app/AptoideTV/ (0644).
+    Executes Step 7: Injects compiled applications into the system image:
+      - WanboLauncher.apk into priv-app/WanboLauncher/ (0644, dir 0755)
+      - WanboSettings.apk into priv-app/WanboSettings/ (0644, dir 0755)
+      - AptoideTV.apk into priv-app/AptoideTV/ (0644, dir 0755)
+      - MaterialFiles.apk into app/MaterialFiles/ (0644, dir 0755)
 
     @param {Path} system_root - Extracted system filesystem root directory.
     @param {Optional[Path]} launcher_apk - Path to compiled WanboLauncher APK.
+    @param {Optional[Path]} settings_apk - Path to compiled WanboSettings APK.
+    @param {Optional[Path]} material_files_apk - Path to MaterialFiles APK.
     @param {Optional[Path]} aptoide_apk - Path to AptoideTV APK.
     @param {bool} dry_run - True to simulate injection without file creation.
     @param {bool} verbose - True for detailed debug logging.
     @returns {Dict[str, Path]} Dictionary mapping injected component names to their final destination paths.
     """
-    log_info("Step 7/9: Injecting WanboLauncher and AptoideTV APKs...", verbose)
+    log_info("Step 7/9: Injecting WanboLauncher, WanboSettings, AptoideTV, and MaterialFiles APKs...", verbose)
     injected: Dict[str, Path] = {}
 
     # Check whether system root is mounted flat or with system/ subdirectory
@@ -613,9 +709,37 @@ def inject_packages(
         log_info(f"Injected WanboLauncher.apk to {launcher_dest} (mode 0644)", verbose)
         injected["WanboLauncher"] = launcher_dest
 
-    # 2. Inject AptoideTV into app/AptoideTV/
-    if aptoide_apk and aptoide_apk.exists():
-        aptoide_dir = base_prefix / "app" / "AptoideTV"
+    # 2. Inject WanboSettings into priv-app/WanboSettings/
+    settings_dir = base_prefix / "priv-app" / "WanboSettings"
+    settings_dest = settings_dir / "WanboSettings.apk"
+
+    if dry_run:
+        log_info(f"[DRY-RUN] Simulated injection: WanboSettings.apk -> {settings_dest} (permissions 0644)", verbose)
+        injected["WanboSettings"] = settings_dest
+    else:
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(settings_dir, 0o755)
+        except OSError:
+            pass
+
+        if settings_apk and settings_apk.exists():
+            shutil.copy2(settings_apk, settings_dest)
+        else:
+            # Fallback placeholder if simulated/stub
+            settings_dest.write_bytes(b"WANBO_SETTINGS_MOCK_APK")
+
+        try:
+            os.chmod(settings_dest, 0o644)
+        except OSError:
+            pass
+
+        log_info(f"Injected WanboSettings.apk to {settings_dest} (mode 0644)", verbose)
+        injected["WanboSettings"] = settings_dest
+
+    # 3. Inject AptoideTV into priv-app/AptoideTV/
+    if aptoide_apk and (aptoide_apk.exists() or dry_run):
+        aptoide_dir = base_prefix / "priv-app" / "AptoideTV"
         aptoide_dest = aptoide_dir / "AptoideTV.apk"
 
         if dry_run:
@@ -638,6 +762,32 @@ def inject_packages(
             injected["AptoideTV"] = aptoide_dest
     else:
         log_info("AptoideTV APK not present; skipping AptoideTV injection.", verbose)
+
+    # 4. Inject MaterialFiles into app/MaterialFiles/
+    if material_files_apk and (material_files_apk.exists() or dry_run):
+        material_dir = base_prefix / "app" / "MaterialFiles"
+        material_dest = material_dir / "MaterialFiles.apk"
+
+        if dry_run:
+            log_info(f"[DRY-RUN] Simulated injection: MaterialFiles.apk -> {material_dest} (permissions 0644)", verbose)
+            injected["MaterialFiles"] = material_dest
+        else:
+            material_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                os.chmod(material_dir, 0o755)
+            except OSError:
+                pass
+
+            shutil.copy2(material_files_apk, material_dest)
+            try:
+                os.chmod(material_dest, 0o644)
+            except OSError:
+                pass
+
+            log_info(f"Injected MaterialFiles.apk to {material_dest} (mode 0644)", verbose)
+            injected["MaterialFiles"] = material_dest
+    else:
+        log_info("MaterialFiles APK not present; skipping MaterialFiles injection.", verbose)
 
     log_info("Step 7/9 complete: Packages injected successfully.", verbose)
     return injected
@@ -975,11 +1125,13 @@ def run_pipeline(config: BuildConfiguration) -> int:
         log_info("Step 5/9 & 6/9: Applying debloat specification and enforcing HAL safety blacklist...", config.verbose)
         apply_debloat(system_extract_dir, config.debloat_list, dry_run=config.dry_run, verbose=config.verbose)
 
-        # Step 7: Inject WanboLauncher and AptoideTV APKs
+        # Step 7: Inject WanboLauncher, WanboSettings, AptoideTV, and MaterialFiles APKs
         inject_packages(
             system_extract_dir,
-            config.launcher_apk,
-            config.aptoide_apk,
+            launcher_apk=config.launcher_apk,
+            settings_apk=config.settings_apk,
+            material_files_apk=config.material_files_apk,
+            aptoide_apk=config.aptoide_apk,
             dry_run=config.dry_run,
             verbose=config.verbose,
         )
@@ -1024,6 +1176,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     default_debloat = repo_root / "os-pipeline" / "patches" / "debloat-list.txt"
     default_build_prop = repo_root / "os-pipeline" / "patches" / "build.prop.patch"
     default_launcher = repo_root / DEFAULT_LAUNCHER_REL_PATH
+    default_settings = repo_root / DEFAULT_SETTINGS_REL_PATH
     default_work_dir = repo_root / "build" / "rom_work"
 
     parser = argparse.ArgumentParser(
@@ -1058,6 +1211,16 @@ def create_argument_parser() -> argparse.ArgumentParser:
         "--launcher-apk",
         default=None,
         help=f"Path to compiled WanboLauncher APK (default: autodetected from {default_launcher}).",
+    )
+    parser.add_argument(
+        "--settings-apk",
+        default=None,
+        help=f"Path to compiled WanboSettings APK (default: autodetected from {default_settings}).",
+    )
+    parser.add_argument(
+        "--material-files-apk",
+        default=None,
+        help="Path to MaterialFiles APK (optional, default: autodetected from os-pipeline/apks/MaterialFiles.apk).",
     )
     parser.add_argument(
         "--aptoide-apk",
@@ -1112,12 +1275,16 @@ def parse_args_to_config(argv: Optional[List[str]] = None) -> BuildConfiguration
     output_fw_str = args.flag_output_fw or args.pos_output_fw or DEFAULT_OUTPUT_BIN_NAME
 
     launcher_apk_path = Path(args.launcher_apk).resolve() if args.launcher_apk else None
+    settings_apk_path = Path(args.settings_apk).resolve() if args.settings_apk else None
+    material_files_apk_path = Path(args.material_files_apk).resolve() if args.material_files_apk else None
     aptoide_apk_path = Path(args.aptoide_apk).resolve() if args.aptoide_apk else None
 
     return BuildConfiguration(
         input_fw=Path(input_fw_str).resolve(),
         output_fw=Path(output_fw_str).resolve(),
         launcher_apk=launcher_apk_path,
+        settings_apk=settings_apk_path,
+        material_files_apk=material_files_apk_path,
         aptoide_apk=aptoide_apk_path,
         debloat_list=Path(args.debloat_list).resolve(),
         build_prop_patch=Path(args.build_prop_patch).resolve(),

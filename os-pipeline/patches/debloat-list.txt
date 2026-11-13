@@ -70,3 +70,28 @@ app/CalendarProvider
 priv-app/CalendarProvider
 app/ContactsProvider
 priv-app/ContactsProvider
+
+# ==============================================================================
+# 5. Legacy Settings (Replaced by WanboSettings)
+# ==============================================================================
+system/priv-app/TvSettingsPlus*
+priv-app/TvSettingsPlus*
+system/priv-app/com.android.tv.settings*
+priv-app/com.android.tv.settings*
+
+# ==============================================================================
+# 6. Obsolete EShare / AirPlay / DLNA daemons
+# ==============================================================================
+system/app/EShareServer*
+app/EShareServer*
+system/app/EAirPlay*
+app/EAirPlay*
+system/app/EDLNA*
+app/EDLNA*
+
+# ==============================================================================
+# 7. Legacy Local Media Manager (Replaced by Material Files TV)
+# ==============================================================================
+system/product/app/MLocalMM2*
+product/app/MLocalMM2*
+

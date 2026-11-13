@@ -154,9 +154,27 @@ class TestPatches(unittest.TestCase):
         self.assertTrue(has_contacts_sync, "debloat-list.txt must include GoogleContactsSyncAdapter")
         self.assertTrue(has_calendar, "debloat-list.txt must include CalendarProvider")
 
+        # 5. Legacy Settings (Replaced by WanboSettings)
+        has_tv_settings_plus = any("TvSettingsPlus" in line for line in lines)
+        has_tv_settings = any("com.android.tv.settings" in line for line in lines)
+        self.assertTrue(has_tv_settings_plus, "debloat-list.txt must include TvSettingsPlus")
+        self.assertTrue(has_tv_settings, "debloat-list.txt must include com.android.tv.settings")
+
+        # 6. Obsolete EShare / AirPlay / DLNA daemons
+        has_eshare = any("EShareServer" in line for line in lines)
+        has_eairplay = any("EAirPlay" in line for line in lines)
+        has_edlna = any("EDLNA" in line for line in lines)
+        self.assertTrue(has_eshare, "debloat-list.txt must include EShareServer")
+        self.assertTrue(has_eairplay, "debloat-list.txt must include EAirPlay")
+        self.assertTrue(has_edlna, "debloat-list.txt must include EDLNA")
+
+        # 7. Legacy Local Media Manager (Replaced by Material Files TV)
+        has_mlocalmm2 = any("MLocalMM2" in line for line in lines)
+        self.assertTrue(has_mlocalmm2, "debloat-list.txt must include MLocalMM2")
+
     def test_debloat_list_preserves_critical_hal_and_drivers(self) -> None:
         """
-        Validates that debloat-list.txt NEVER includes critical HALs, drivers, or system settings.
+        Validates that debloat-list.txt NEVER includes critical HALs, drivers, or services.
 
         @returns {None}
         """
@@ -175,8 +193,6 @@ class TestPatches(unittest.TestCase):
             "com.mediatek.autopair",
             "loadingequalizer",
             "com.mediatek.loadingequalizer",
-            "tv.settings",
-            "com.android.tv.settings",
             "kxtj2server",
             "hotkey.dispatcher",
         ]

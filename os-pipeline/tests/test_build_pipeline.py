@@ -32,8 +32,11 @@ from build_rom import (  # noqa: E402
     convert_sparse_to_raw,
     create_argument_parser,
     extract_system_image,
+    find_launcher_apk,
     find_matching_debloat_targets,
+    find_material_files_apk,
     find_mstar_tool,
+    find_settings_apk,
     get_repo_root,
     inject_packages,
     is_blacklisted,
@@ -91,6 +94,10 @@ class TestBuildPipeline(unittest.TestCase):
         self.assertFalse(config.dry_run)
         self.assertFalse(config.verbose)
         self.assertFalse(config.keep_work_dir)
+        self.assertIsNone(config.launcher_apk)
+        self.assertIsNone(config.settings_apk)
+        self.assertIsNone(config.material_files_apk)
+        self.assertIsNone(config.aptoide_apk)
         self.assertEqual(config.debloat_list, self.debloat_file.resolve())
         self.assertEqual(config.build_prop_patch, self.build_prop_file.resolve())
 
@@ -112,6 +119,10 @@ class TestBuildPipeline(unittest.TestCase):
         """
         dummy_launcher = self.temp_dir / "WanboLauncher.apk"
         dummy_launcher.write_bytes(b"LAUNCHER_APK")
+        dummy_settings = self.temp_dir / "WanboSettings.apk"
+        dummy_settings.write_bytes(b"SETTINGS_APK")
+        dummy_material = self.temp_dir / "MaterialFiles.apk"
+        dummy_material.write_bytes(b"MATERIAL_APK")
         dummy_aptoide = self.temp_dir / "AptoideTV.apk"
         dummy_aptoide.write_bytes(b"APTOIDE_APK")
         custom_work = self.temp_dir / "custom_work"
@@ -120,6 +131,8 @@ class TestBuildPipeline(unittest.TestCase):
             "-i", "input_fw_flag.bin",
             "-o", "output_fw_flag.bin",
             "--launcher-apk", str(dummy_launcher),
+            "--settings-apk", str(dummy_settings),
+            "--material-files-apk", str(dummy_material),
             "--aptoide-apk", str(dummy_aptoide),
             "--work-dir", str(custom_work),
             "--dry-run",
@@ -131,6 +144,8 @@ class TestBuildPipeline(unittest.TestCase):
         self.assertEqual(config.input_fw.name, "input_fw_flag.bin")
         self.assertEqual(config.output_fw.name, "output_fw_flag.bin")
         self.assertEqual(config.launcher_apk, dummy_launcher.resolve())
+        self.assertEqual(config.settings_apk, dummy_settings.resolve())
+        self.assertEqual(config.material_files_apk, dummy_material.resolve())
         self.assertEqual(config.aptoide_apk, dummy_aptoide.resolve())
         self.assertEqual(config.work_dir, custom_work.resolve())
         self.assertTrue(config.dry_run)
@@ -223,6 +238,81 @@ class TestBuildPipeline(unittest.TestCase):
         self.assertIn("MemoryClean", target_names)
         self.assertIn("ZeasnService", target_names)
 
+    def test_debloat_targets_include_legacy_settings_and_cast_and_media(self) -> None:
+        """
+        Validates that TvSettingsPlus, com.android.tv.settings, EShareServer, EAirPlay,
+        EDLNA, and MLocalMM2 are successfully matched by debloat rules in both standard
+        and flat filesystem layouts.
+
+        @returns {None}
+        """
+        system_root = self.temp_dir / "sys_legacy_debloat"
+        system_root.mkdir(parents=True, exist_ok=True)
+
+        # Standard layout targets
+        (system_root / "system" / "priv-app" / "TvSettingsPlus").mkdir(parents=True, exist_ok=True)
+        (system_root / "system" / "priv-app" / "com.android.tv.settings").mkdir(parents=True, exist_ok=True)
+        (system_root / "system" / "app" / "EShareServer").mkdir(parents=True, exist_ok=True)
+        (system_root / "system" / "app" / "EAirPlay").mkdir(parents=True, exist_ok=True)
+        (system_root / "system" / "app" / "EDLNA").mkdir(parents=True, exist_ok=True)
+        (system_root / "system" / "product" / "app" / "MLocalMM2").mkdir(parents=True, exist_ok=True)
+
+        patterns = parse_debloat_list(self.debloat_file)
+        targets = find_matching_debloat_targets(system_root, patterns)
+        target_names = [t.name for t in targets]
+
+        self.assertIn("TvSettingsPlus", target_names)
+        self.assertIn("com.android.tv.settings", target_names)
+        self.assertIn("EShareServer", target_names)
+        self.assertIn("EAirPlay", target_names)
+        self.assertIn("EDLNA", target_names)
+        self.assertIn("MLocalMM2", target_names)
+
+        # Flat layout targets
+        flat_root = self.temp_dir / "sys_legacy_flat"
+        flat_root.mkdir(parents=True, exist_ok=True)
+        (flat_root / "priv-app" / "TvSettingsPlus").mkdir(parents=True, exist_ok=True)
+        (flat_root / "priv-app" / "com.android.tv.settings").mkdir(parents=True, exist_ok=True)
+        (flat_root / "app" / "EShareServer").mkdir(parents=True, exist_ok=True)
+        (flat_root / "product" / "app" / "MLocalMM2").mkdir(parents=True, exist_ok=True)
+
+        targets_flat = find_matching_debloat_targets(flat_root, patterns)
+        target_names_flat = [t.name for t in targets_flat]
+        self.assertIn("TvSettingsPlus", target_names_flat)
+        self.assertIn("com.android.tv.settings", target_names_flat)
+        self.assertIn("EShareServer", target_names_flat)
+        self.assertIn("MLocalMM2", target_names_flat)
+
+    def test_debloat_rules_preserve_livetv_for_hdmi_switching(self) -> None:
+        """
+        Validates that LiveTV (system/priv-app/LiveTV) is NOT matched by any debloat rule,
+        preserving hardware HDMI input switching functionality.
+
+        @returns {None}
+        """
+        system_root = self.temp_dir / "sys_livetv"
+        system_root.mkdir(parents=True, exist_ok=True)
+
+        livetv_dir = system_root / "system" / "priv-app" / "LiveTV"
+        livetv_dir.mkdir(parents=True, exist_ok=True)
+        livetv_apk = livetv_dir / "LiveTV.apk"
+        livetv_apk.write_bytes(b"HARDWARE_LIVETV_APK")
+
+        patterns = parse_debloat_list(self.debloat_file)
+        targets = find_matching_debloat_targets(system_root, patterns)
+        target_names = [t.name for t in targets]
+
+        self.assertNotIn("LiveTV", target_names)
+        self.assertNotIn("LiveTV.apk", target_names)
+
+        # Verify LiveTV itself is not in parsed debloat patterns
+        for pattern in patterns:
+            norm = pattern.strip("/")
+            self.assertNotEqual(norm, "system/priv-app/LiveTV")
+            self.assertNotEqual(norm, "priv-app/LiveTV")
+            self.assertNotEqual(norm, "system/priv-app/LiveTV*")
+            self.assertNotEqual(norm, "priv-app/LiveTV*")
+
     # ==========================================================================
     # Group C: HAL Preservation Safety Blacklist
     # ==========================================================================
@@ -244,8 +334,8 @@ class TestBuildPipeline(unittest.TestCase):
             "priv-app/com.mediatek.autopair",
             "app/loadingequalizer",
             "priv-app/com.mediatek.loadingequalizer",
-            "priv-app/tv.settings",
-            "priv-app/com.android.tv.settings",
+            "system/app/TyyLauncher",
+            "priv-app/com.chijimlee.tyylauncher",
             "vendor/bin/kxtj2server",
             "app/com.mediatek.hotkey.dispatcher",
         ]
@@ -256,9 +346,9 @@ class TestBuildPipeline(unittest.TestCase):
                 f"Critical hardware component must be blacklisted: {case}",
             )
 
-    def test_is_blacklisted_allows_regular_bloat(self) -> None:
+    def test_is_blacklisted_allows_regular_bloat_and_purged_targets(self) -> None:
         """
-        Validates that is_blacklisted returns False for regular bloatware packages.
+        Validates that is_blacklisted returns False for bloatware packages and purged legacy services.
 
         @returns {None}
         """
@@ -268,6 +358,12 @@ class TestBuildPipeline(unittest.TestCase):
             "system/app/MemoryClean",
             "system/app/CleanCacheUtil",
             "system/app/PrintSpooler",
+            "system/priv-app/TvSettingsPlus",
+            "system/priv-app/com.android.tv.settings",
+            "system/app/EShareServer",
+            "system/app/EAirPlay",
+            "system/app/EDLNA",
+            "system/product/app/MLocalMM2",
         ]
         for case in bloat_cases:
             self.assertFalse(is_blacklisted(case), f"Bloatware must not trigger blacklist: {case}")
@@ -352,7 +448,7 @@ class TestBuildPipeline(unittest.TestCase):
 
     def test_inject_packages_aptoide_tv(self) -> None:
         """
-        Validates injection of AptoideTV into app/AptoideTV/AptoideTV.apk.
+        Validates injection of AptoideTV into priv-app/AptoideTV/AptoideTV.apk (0644).
 
         @returns {None}
         """
@@ -376,7 +472,138 @@ class TestBuildPipeline(unittest.TestCase):
         self.assertTrue(aptoide_dest.exists())
         self.assertEqual(aptoide_dest.name, "AptoideTV.apk")
         self.assertEqual(aptoide_dest.parent.name, "AptoideTV")
+        self.assertEqual(aptoide_dest.parent.parent.name, "priv-app")
         self.assertEqual(aptoide_dest.read_bytes(), b"APTOIDE_TV_BINARY_DATA")
+
+    def test_inject_packages_wanbo_settings(self) -> None:
+        """
+        Validates injection of WanboSettings into priv-app/WanboSettings/WanboSettings.apk (0644).
+
+        @returns {None}
+        """
+        system_root = self.temp_dir / "sys_inject_settings"
+        system_root.mkdir(parents=True, exist_ok=True)
+
+        dummy_launcher = self.temp_dir / "WanboLauncher.apk"
+        dummy_launcher.write_bytes(b"WANBO_LAUNCHER")
+        dummy_settings = self.temp_dir / "WanboSettings.apk"
+        dummy_settings.write_bytes(b"WANBO_SETTINGS_BINARY_DATA")
+
+        injected = inject_packages(
+            system_root,
+            launcher_apk=dummy_launcher,
+            settings_apk=dummy_settings,
+            dry_run=False,
+        )
+
+        self.assertIn("WanboSettings", injected)
+        settings_dest = injected["WanboSettings"]
+        self.assertTrue(settings_dest.exists())
+        self.assertEqual(settings_dest.name, "WanboSettings.apk")
+        self.assertEqual(settings_dest.parent.name, "WanboSettings")
+        self.assertEqual(settings_dest.parent.parent.name, "priv-app")
+        self.assertEqual(settings_dest.read_bytes(), b"WANBO_SETTINGS_BINARY_DATA")
+
+    def test_inject_packages_material_files(self) -> None:
+        """
+        Validates injection of MaterialFiles into app/MaterialFiles/MaterialFiles.apk (0644).
+
+        @returns {None}
+        """
+        system_root = self.temp_dir / "sys_inject_material"
+        system_root.mkdir(parents=True, exist_ok=True)
+
+        dummy_launcher = self.temp_dir / "WanboLauncher.apk"
+        dummy_launcher.write_bytes(b"WANBO_LAUNCHER")
+        dummy_material = self.temp_dir / "MaterialFiles.apk"
+        dummy_material.write_bytes(b"MATERIAL_FILES_BINARY_DATA")
+
+        injected = inject_packages(
+            system_root,
+            launcher_apk=dummy_launcher,
+            material_files_apk=dummy_material,
+            dry_run=False,
+        )
+
+        self.assertIn("MaterialFiles", injected)
+        material_dest = injected["MaterialFiles"]
+        self.assertTrue(material_dest.exists())
+        self.assertEqual(material_dest.name, "MaterialFiles.apk")
+        self.assertEqual(material_dest.parent.name, "MaterialFiles")
+        self.assertEqual(material_dest.parent.parent.name, "app")
+        self.assertEqual(material_dest.read_bytes(), b"MATERIAL_FILES_BINARY_DATA")
+
+    def test_inject_packages_all_four_components(self) -> None:
+        """
+        Validates simultaneous injection of WanboLauncher, WanboSettings, AptoideTV, and MaterialFiles.
+
+        @returns {None}
+        """
+        system_root = self.temp_dir / "sys_inject_all"
+        system_root.mkdir(parents=True, exist_ok=True)
+
+        dummy_launcher = self.temp_dir / "WanboLauncher.apk"
+        dummy_launcher.write_bytes(b"LAUNCHER_DATA")
+        dummy_settings = self.temp_dir / "WanboSettings.apk"
+        dummy_settings.write_bytes(b"SETTINGS_DATA")
+        dummy_aptoide = self.temp_dir / "AptoideTV.apk"
+        dummy_aptoide.write_bytes(b"APTOIDE_DATA")
+        dummy_material = self.temp_dir / "MaterialFiles.apk"
+        dummy_material.write_bytes(b"MATERIAL_DATA")
+
+        injected = inject_packages(
+            system_root,
+            launcher_apk=dummy_launcher,
+            settings_apk=dummy_settings,
+            material_files_apk=dummy_material,
+            aptoide_apk=dummy_aptoide,
+            dry_run=False,
+        )
+
+        self.assertEqual(len(injected), 4)
+        self.assertIn("WanboLauncher", injected)
+        self.assertIn("WanboSettings", injected)
+        self.assertIn("AptoideTV", injected)
+        self.assertIn("MaterialFiles", injected)
+
+        self.assertEqual(injected["WanboLauncher"].parent.parent.name, "priv-app")
+        self.assertEqual(injected["WanboSettings"].parent.parent.name, "priv-app")
+        self.assertEqual(injected["AptoideTV"].parent.parent.name, "priv-app")
+        self.assertEqual(injected["MaterialFiles"].parent.parent.name, "app")
+
+    def test_find_settings_apk_resolution(self) -> None:
+        """
+        Validates resolution of WanboSettings APK from explicit path and standard build locations.
+
+        @returns {None}
+        """
+        dummy_settings = self.temp_dir / "CustomSettings.apk"
+        dummy_settings.write_bytes(b"SETTINGS")
+
+        # Explicit path resolution
+        resolved = find_settings_apk(dummy_settings)
+        self.assertEqual(resolved, dummy_settings.resolve())
+
+        # Non-existent explicit path
+        non_existent = self.temp_dir / "non_existent.apk"
+        self.assertIsNone(find_settings_apk(non_existent))
+
+    def test_find_material_files_apk_resolution(self) -> None:
+        """
+        Validates resolution of MaterialFiles APK from explicit path and standard storage locations.
+
+        @returns {None}
+        """
+        dummy_material = self.temp_dir / "CustomMaterial.apk"
+        dummy_material.write_bytes(b"MATERIAL")
+
+        # Explicit path resolution
+        resolved = find_material_files_apk(dummy_material)
+        self.assertEqual(resolved, dummy_material.resolve())
+
+        # Non-existent explicit path
+        non_existent = self.temp_dir / "non_existent.apk"
+        self.assertIsNone(find_material_files_apk(non_existent))
 
     def test_patch_build_prop_appends_cleanly(self) -> None:
         """
