@@ -218,10 +218,15 @@ def update_build_prop(patch_file: str, img_path: str):
 def main():
     """
     Main modification entrypoint.
+    @returns {None}
     """
     img_path = "/mnt/c/Users/fecam/wanbo-light-os/build/test_system_raw.img"
-    apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboLauncher.apk"
-    settings_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboSettings.apk"
+    apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/WanboLauncher.apk"
+    if not os.path.exists(apk_path):
+        apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboLauncher.apk"
+    settings_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/WanboSettings.apk"
+    if not os.path.exists(settings_apk_path):
+        settings_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboSettings.apk"
     material_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/MaterialFiles.apk"
     patch_path = "/mnt/c/Users/fecam/wanbo-light-os/os-pipeline/patches/build.prop.patch"
 
