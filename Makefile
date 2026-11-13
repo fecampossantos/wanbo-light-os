@@ -48,6 +48,7 @@ launcher:
 test:
 	@echo "[INFO] Running WanboLightOS unit and pipeline verification tests..."
 	@$(PYTHON) -m unittest discover -s os-pipeline/tests -p "test_*.py" -v
+	@$(PYTHON) -m unittest discover -s docs/tests -p "test_*.py" -v
 
 rom:
 	@echo "[INFO] Running automated firmware unpack, debloat, injection & repack pipeline..."
@@ -55,4 +56,4 @@ rom:
 
 clean:
 	@echo "[INFO] Cleaning temporary build artifacts..."
-	@rm -rf build launcher/app/build launcher/build os-pipeline/__pycache__ os-pipeline/tests/__pycache__
+	@rm -rf build launcher/app/build launcher/build os-pipeline/__pycache__ os-pipeline/tests/__pycache__ docs/tests/__pycache__

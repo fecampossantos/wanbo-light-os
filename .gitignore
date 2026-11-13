@@ -2,4 +2,7 @@
 build/
 .gradle/
 local.properties
-
+__pycache__/
+*.pyc
+*.class
+task-*.md

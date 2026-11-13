@@ -585,10 +585,11 @@ class TestBuildPipeline(unittest.TestCase):
 
         bash_tool = shutil.which("bash")
         if bash_tool:
-            res_syntax = subprocess.run([bash_tool, "-n", str(script_path)], capture_output=True, text=True)
+            rel_path = "os-pipeline/build-rom.sh"
+            res_syntax = subprocess.run([bash_tool, "-n", rel_path], cwd=str(self.repo_root), capture_output=True, text=True)
             self.assertEqual(res_syntax.returncode, 0, f"bash -n syntax check failed: {res_syntax.stderr}")
 
-            res_help = subprocess.run([bash_tool, str(script_path), "-h"], capture_output=True, text=True)
+            res_help = subprocess.run([bash_tool, rel_path, "-h"], cwd=str(self.repo_root), capture_output=True, text=True)
             self.assertEqual(res_help.returncode, 0, f"bash -h failed: {res_help.stderr}")
             self.assertIn("Usage:", res_help.stdout)
 
