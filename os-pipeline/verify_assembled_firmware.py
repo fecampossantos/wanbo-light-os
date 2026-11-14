@@ -93,9 +93,10 @@ def main():
         print(f"  Ext4 Superblock magic: {hex(magic)} (expected: 0xef53)")
         assert magic == 0xef53
 
-    # Run e2fsck in WSL
+    # Run e2fsck in WSL or native Linux
     wsl_img = "/mnt/c/Users/fecam/wanbo-light-os/build/verify_assembled_raw.img"
-    res = subprocess.run(["wsl", "e2fsck", "-f", "-n", wsl_img], capture_output=True, text=True)
+    e2fsck_cmd = ["e2fsck", "-f", "-n", wsl_img] if os.path.exists("/usr/sbin/e2fsck") else ["wsl", "e2fsck", "-f", "-n", wsl_img]
+    res = subprocess.run(e2fsck_cmd, capture_output=True, text=True)
     print("e2fsck verification result:")
     print(res.stdout)
     assert res.returncode == 0
