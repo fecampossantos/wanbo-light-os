@@ -63,6 +63,12 @@ class MainActivity : Activity() {
         setupHardwareShortcuts()
         setupRecyclerViews()
         loadApps()
+        mainHandler.postDelayed({
+            HardwareController.ensureDefaultOpticalOrientation(this)
+        }, 1000L)
+        mainHandler.postDelayed({
+            HardwareController.ensureDefaultOpticalOrientation(this)
+        }, 4000L)
     }
 
     /**

@@ -579,9 +579,13 @@ class ProjectionPaneController(
      * Reads current hardware and persisted configurations to initialize the UI state.
      */
     fun refreshProjectionState() {
-        // 1. Resolve current Projection Mode from system property or persisted preference
+        // 1. Resolve current Projection Mode from MediaTek eMMC env, system property, or persisted preference
+        val emmcFlip = readMtkEmmcFlipMode()
+        val mstarProp = ProjectionStateHelper.getSystemProperty("vendor.mstar.mirrormode")
         val propValue = ProjectionStateHelper.getSystemProperty(ProjectionStateHelper.PROP_FLIP_MODE)
-        val initialMode = propValue.toIntOrNull()
+        val initialMode = emmcFlip.toIntOrNull()
+            ?: mstarProp.toIntOrNull()
+            ?: propValue.toIntOrNull()
             ?: prefs.getInt(ProjectionStateHelper.PREF_KEY_PROJECTION_MODE, 0)
         currentProjectionMode = if (ProjectionStateHelper.isValidModeIndex(initialMode)) initialMode else 0
         updateProjectionModeUi(currentProjectionMode)
@@ -599,13 +603,17 @@ class ProjectionPaneController(
 
     /**
      * Activates a new projection mode index, dispatches hardware broadcast,
-     * updates system properties, saves preference, and updates UI badges.
+     * invokes the MediaTek TV Factory Display HAL wrapper, updates system properties,
+     * saves preference, and updates UI badges.
      *
      * @param modeIndex Target projection mode index (0..3).
      */
     fun setProjectionMode(modeIndex: Int) {
         if (!ProjectionStateHelper.isValidModeIndex(modeIndex)) return
         currentProjectionMode = modeIndex
+
+        // Invoke real MediaTek TV Factory Display HAL and eMMC environment setter
+        applyMtkHardwareMirrorMode(modeIndex)
 
         // Dispatch broadcast to MStar/MediaTek HAL
         val intent = ProjectionStateHelper.createMirrorModeBroadcastIntent(modeIndex)
@@ -615,6 +623,7 @@ class ProjectionPaneController(
         }
 
         // Update system properties
+        ProjectionStateHelper.setSystemProperty("vendor.mstar.mirrormode", modeIndex.toString())
         ProjectionStateHelper.setSystemProperty(ProjectionStateHelper.PROP_FLIP_MODE, modeIndex.toString())
         ProjectionStateHelper.setSystemProperty(ProjectionStateHelper.PROP_MIRROR_MODE, modeIndex.toString())
 
@@ -623,6 +632,58 @@ class ProjectionPaneController(
 
         // Update visual state
         updateProjectionModeUi(modeIndex)
+    }
+
+    /**
+     * Invokes MtkTvFApiDisplayWrapper.setMirrorMode and MtkTvFApiSystem.setEmmcEnvVar
+     * using the com.chijimlee.tyylauncher package classLoader so the hardware scaler
+     * flips the display immediately and persists across reboots.
+     *
+     * @param modeIndex Target projection mode index (0..3).
+     * @return True if the MediaTek HAL invocation succeeded; false otherwise.
+     */
+    private fun applyMtkHardwareMirrorMode(modeIndex: Int): Boolean {
+        return try {
+            val pkgCtx = activity.createPackageContext(
+                "com.chijimlee.tyylauncher",
+                Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY
+            )
+            val cl = pkgCtx.classLoader
+
+            val sysClass = cl.loadClass("com.mediatek.twoworlds.factory.MtkTvFApiSystem")
+            val sysInstance = sysClass.getMethod("getInstance").invoke(null)
+            sysClass.getMethod("setEmmcEnvVar", String::class.java, String::class.java)
+                .invoke(sysInstance, "FLIP_MODE", modeIndex.toString())
+
+            val dispClass = cl.loadClass("com.mediatek.twoworlds.factory.clientwrapper.MtkTvFApiDisplayWrapper")
+            val dispInstance = dispClass.getMethod("getInstance").invoke(null)
+            dispClass.getMethod("setMirrorMode", Int::class.javaPrimitiveType)
+                .invoke(dispInstance, modeIndex)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Reads the active FLIP_MODE variable from the MediaTek eMMC environment via MtkTvFApiSystem.
+     *
+     * @return Current FLIP_MODE value string or empty string if unavailable.
+     */
+    private fun readMtkEmmcFlipMode(): String {
+        return try {
+            val pkgCtx = activity.createPackageContext(
+                "com.chijimlee.tyylauncher",
+                Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY
+            )
+            val cl = pkgCtx.classLoader
+            val sysClass = cl.loadClass("com.mediatek.twoworlds.factory.MtkTvFApiSystem")
+            val sysInstance = sysClass.getMethod("getInstance").invoke(null)
+            (sysClass.getMethod("getEmmcEnvVar", String::class.java)
+                .invoke(sysInstance, "FLIP_MODE") as? String)?.trim() ?: ""
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     /**

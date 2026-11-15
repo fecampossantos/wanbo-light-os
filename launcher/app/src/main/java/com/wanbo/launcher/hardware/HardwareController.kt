@@ -291,6 +291,97 @@ class HardwareController(private val defaultContext: Context? = null) {
                 false
             }
         }
+
+        /**
+         * Applies the specified hardware optical mirror mode (0..3) directly via the MediaTek
+         * TV Factory HIDL wrapper (MtkTvFApiDisplayWrapper and MtkTvFApiSystem) hosted in
+         * com.chijimlee.tyylauncher, updating both the hardware scaler and eMMC FLIP_MODE variable.
+         *
+         * @param context Context used to create package context for com.chijimlee.tyylauncher.
+         * @param modeIndex Target hardware mirror mode index (0..3).
+         * @return True if the MediaTek HAL wrapper executed without exception; false otherwise.
+         */
+        @JvmStatic
+        fun applyHardwareMirrorMode(context: Context, modeIndex: Int): Boolean {
+            return try {
+                val pkgCtx = context.createPackageContext(
+                    "com.chijimlee.tyylauncher",
+                    Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY
+                )
+                val cl = pkgCtx.classLoader
+
+                val sysClass = cl.loadClass("com.mediatek.twoworlds.factory.MtkTvFApiSystem")
+                val sysInstance = sysClass.getMethod("getInstance").invoke(null)
+                sysClass.getMethod("setEmmcEnvVar", String::class.java, String::class.java)
+                    .invoke(sysInstance, "FLIP_MODE", modeIndex.toString())
+
+                val dispClass = cl.loadClass("com.mediatek.twoworlds.factory.clientwrapper.MtkTvFApiDisplayWrapper")
+                val dispInstance = dispClass.getMethod("getInstance").invoke(null)
+                dispClass.getMethod("setMirrorMode", Int::class.javaPrimitiveType)
+                    .invoke(dispInstance, modeIndex)
+
+                try {
+                    val spClass = Class.forName("android.os.SystemProperties")
+                    val setMethod = spClass.getMethod("set", String::class.java, String::class.java)
+                    setMethod.invoke(null, "vendor.mstar.mirrormode", modeIndex.toString())
+                    setMethod.invoke(null, "persist.sys.flip_mode", modeIndex.toString())
+                } catch (_: Exception) {
+                }
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        /**
+         * Reads the current eMMC FLIP_MODE environment variable via MtkTvFApiSystem.
+         *
+         * @param context Context used to access com.chijimlee.tyylauncher classes.
+         * @return Current FLIP_MODE string, or empty string if unavailable.
+         */
+        @JvmStatic
+        fun readHardwareFlipMode(context: Context): String {
+            return try {
+                val pkgCtx = context.createPackageContext(
+                    "com.chijimlee.tyylauncher",
+                    Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY
+                )
+                val cl = pkgCtx.classLoader
+                val sysClass = cl.loadClass("com.mediatek.twoworlds.factory.MtkTvFApiSystem")
+                val sysInstance = sysClass.getMethod("getInstance").invoke(null)
+                (sysClass.getMethod("getEmmcEnvVar", String::class.java)
+                    .invoke(sysInstance, "FLIP_MODE") as? String)?.trim() ?: ""
+            } catch (_: Exception) {
+                ""
+            }
+        }
+
+        /**
+         * Ensures the Wanbo T2 Max optical reflection compensation (mode 1) is applied
+         * automatically on the first boot after a USB firmware flash (where mboot.bin resets
+         * FLIP_MODE to 0). Preserves any subsequent user changes across normal reboots.
+         *
+         * @param context Context used to read SharedPreferences and invoke the MediaTek HAL.
+         */
+        @JvmStatic
+        fun ensureDefaultOpticalOrientation(context: Context) {
+            try {
+                val prefs = context.getSharedPreferences("wanbo_optical_prefs", Context.MODE_PRIVATE) ?: return
+                val alreadyInitialized = prefs.getBoolean("initial_optical_flip_applied", false)
+                if (!alreadyInitialized) {
+                    val currentFlip = readHardwareFlipMode(context)
+                    if (currentFlip.isEmpty() || currentFlip == "0") {
+                        val applied = applyHardwareMirrorMode(context, 1)
+                        if (applied && readHardwareFlipMode(context) == "1") {
+                            prefs.edit().putBoolean("initial_optical_flip_applied", true).apply()
+                        }
+                    } else {
+                        prefs.edit().putBoolean("initial_optical_flip_applied", true).apply()
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 
     /**

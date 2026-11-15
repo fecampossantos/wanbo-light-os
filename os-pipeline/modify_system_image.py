@@ -98,7 +98,8 @@ def inject_wanbo_launcher(apk_host_path: str, img_path: str):
     run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
     run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
 
-    # Write APK
+    # Remove existing APK before writing to prevent debugfs "File already exists" failure
+    run_debugfs(f"rm {target_apk}", img_path, write=True)
     run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
     run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
     run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
@@ -123,7 +124,8 @@ def inject_wanbo_settings(apk_host_path: str, img_path: str):
     run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
     run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
 
-    # Write APK
+    # Remove existing APK before writing to prevent debugfs "File already exists" failure
+    run_debugfs(f"rm {target_apk}", img_path, write=True)
     run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
     run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
     run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
@@ -148,7 +150,8 @@ def inject_material_files(apk_host_path: str, img_path: str):
     run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
     run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
 
-    # Write APK
+    # Remove existing APK before writing to prevent debugfs "File already exists" failure
+    run_debugfs(f"rm {target_apk}", img_path, write=True)
     run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
     run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
     run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
