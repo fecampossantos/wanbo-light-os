@@ -65,6 +65,8 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        WifiPaneController.ensureWifiScanPrerequisites(this)
+
         bindViews()
         setupCategoryRail()
         setupFocusListeners()

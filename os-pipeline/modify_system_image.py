@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import zipfile
 
 def run_debugfs(cmd: str, img_path: str, write: bool = False) -> str:
     """
@@ -131,6 +132,66 @@ def inject_wanbo_settings(apk_host_path: str, img_path: str):
     run_debugfs(f"sif {target_apk} gid 0", img_path, write=True)
     print("  WanboSettings.apk installed successfully.")
 
+def extract_and_inject_native_libs(apk_host_path: str, target_dir: str, img_path: str):
+    """
+    Extract lib/armeabi-v7a/*.so from an APK and inject them into <target_dir>/lib/arm/*.so
+    inside the ext4 image so read-only /system apps can load their JNI libraries at runtime.
+    @param apk_host_path: Host path to the APK file.
+    @param target_dir: Target directory in ext4 image (e.g. /system/priv-app/AptoideTV).
+    @param img_path: Path to ext4 image file.
+    """
+    with zipfile.ZipFile(apk_host_path, "r") as zf:
+        arm_sos = [name for name in zf.namelist() if name.startswith("lib/armeabi-v7a/") and name.endswith(".so")]
+        if not arm_sos:
+            return
+        lib_dir = f"{target_dir}/lib"
+        arm_dir = f"{target_dir}/lib/arm"
+        for d in (lib_dir, arm_dir):
+            run_debugfs(f"mkdir {d}", img_path, write=True)
+            run_debugfs(f"ea_set {d} security.selinux u:object_r:system_file:s0", img_path, write=True)
+            run_debugfs(f"sif {d} mode 040755", img_path, write=True)
+            run_debugfs(f"sif {d} uid 0", img_path, write=True)
+            run_debugfs(f"sif {d} gid 0", img_path, write=True)
+        for entry in arm_sos:
+            so_name = os.path.basename(entry)
+            tmp_so = f"/tmp/{so_name}"
+            with open(tmp_so, "wb") as fout:
+                fout.write(zf.read(entry))
+            remote_so = f"{arm_dir}/{so_name}"
+            run_debugfs(f"rm {remote_so}", img_path, write=True)
+            run_debugfs(f"write {tmp_so} {remote_so}", img_path, write=True)
+            run_debugfs(f"ea_set {remote_so} security.selinux u:object_r:system_file:s0", img_path, write=True)
+            run_debugfs(f"sif {remote_so} mode 0100644", img_path, write=True)
+            run_debugfs(f"sif {remote_so} uid 0", img_path, write=True)
+            run_debugfs(f"sif {remote_so} gid 0", img_path, write=True)
+            os.remove(tmp_so)
+            print(f"    Injected native JNI library: {remote_so}")
+
+def inject_aptoide_tv(apk_host_path: str, img_path: str):
+    """
+    Inject AptoideTV.apk into /system/priv-app/AptoideTV along with its armeabi-v7a JNI libraries.
+    @param apk_host_path: Host path to AptoideTV.apk.
+    @param img_path: Path to ext4 image file.
+    """
+    print("[i] Injecting AptoideTV into /system/priv-app/AptoideTV/...")
+    target_dir = "/system/priv-app/AptoideTV"
+    target_apk = f"{target_dir}/AptoideTV.apk"
+
+    run_debugfs(f"mkdir {target_dir}", img_path, write=True)
+    run_debugfs(f"ea_set {target_dir} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} mode 040755", img_path, write=True)
+    run_debugfs(f"sif {target_dir} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_dir} gid 0", img_path, write=True)
+
+    run_debugfs(f"rm {target_apk}", img_path, write=True)
+    run_debugfs(f"write {apk_host_path} {target_apk}", img_path, write=True)
+    run_debugfs(f"ea_set {target_apk} security.selinux u:object_r:system_file:s0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
+    run_debugfs(f"sif {target_apk} uid 0", img_path, write=True)
+    run_debugfs(f"sif {target_apk} gid 0", img_path, write=True)
+    extract_and_inject_native_libs(apk_host_path, target_dir, img_path)
+    print("  AptoideTV.apk installed successfully.")
+
 def inject_material_files(apk_host_path: str, img_path: str):
     """
     Inject MaterialFiles.apk into /system/app/MaterialFiles.
@@ -155,6 +216,7 @@ def inject_material_files(apk_host_path: str, img_path: str):
     run_debugfs(f"sif {target_apk} mode 0100644", img_path, write=True)
     run_debugfs(f"sif {target_apk} uid 0", img_path, write=True)
     run_debugfs(f"sif {target_apk} gid 0", img_path, write=True)
+    extract_and_inject_native_libs(apk_host_path, target_dir, img_path)
     print("  MaterialFiles.apk installed successfully.")
 
 def update_build_prop(patch_file: str, img_path: str):
@@ -189,6 +251,8 @@ def update_build_prop(patch_file: str, img_path: str):
     seen_keys = set()
     for line in orig_lines:
         s = line.strip()
+        if s == "# Added by WanboLightOS Optimization Patch":
+            continue
         if "=" in s and not s.startswith("#"):
             k, v = s.split("=", 1)
             k = k.strip()
@@ -198,10 +262,11 @@ def update_build_prop(patch_file: str, img_path: str):
                 continue
         final_lines.append(line)
 
-    final_lines.append("\n# Added by WanboLightOS Optimization Patch")
-    for k, v in patch_dict.items():
-        if k not in seen_keys:
-            final_lines.append(f"{k}={v}")
+    if any(k not in seen_keys for k in patch_dict):
+        final_lines.append("\n# Added by WanboLightOS Optimization Patch")
+        for k, v in patch_dict.items():
+            if k not in seen_keys:
+                final_lines.append(f"{k}={v}")
 
     new_content = "\n".join(final_lines) + "\n"
     with open(tmp_new, "w", encoding="utf-8") as f:
@@ -228,6 +293,7 @@ def main():
     settings_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/WanboSettings.apk"
     if not os.path.exists(settings_apk_path):
         settings_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/WanboSettings.apk"
+    aptoide_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/AptoideTV.apk"
     material_apk_path = "/mnt/c/Users/fecam/wanbo-light-os/build/MaterialFiles.apk"
     patch_path = "/mnt/c/Users/fecam/wanbo-light-os/os-pipeline/patches/build.prop.patch"
 
@@ -240,6 +306,8 @@ def main():
         inject_wanbo_launcher(apk_path, img_path)
     if os.path.exists(settings_apk_path):
         inject_wanbo_settings(settings_apk_path, img_path)
+    if os.path.exists(aptoide_apk_path):
+        inject_aptoide_tv(aptoide_apk_path, img_path)
     if os.path.exists(material_apk_path):
         inject_material_files(material_apk_path, img_path)
     update_build_prop(patch_path, img_path)

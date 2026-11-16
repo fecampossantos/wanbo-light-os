@@ -9,8 +9,8 @@ android {
 
     defaultConfig {
         applicationId = "com.wanbo.settings"
-        minSdk = 28
-        targetSdk = 28
+        minSdk = 22
+        targetSdk = 22
         versionCode = 1
         versionName = "1.0.0"
 

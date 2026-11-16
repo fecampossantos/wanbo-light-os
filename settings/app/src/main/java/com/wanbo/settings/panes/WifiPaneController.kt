@@ -11,6 +11,11 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.content.pm.PackageManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -155,6 +160,49 @@ class WifiPaneController(
     private var rootView: View? = null
     private var wifiManager: WifiManager? = null
     private var wifiReceiver: BroadcastReceiver? = null
+    private val scanPollHandler = Handler(Looper.getMainLooper())
+
+    companion object {
+        /**
+         * Ensures Android 9 Pie Wi-Fi scan prerequisites are satisfied by enabling
+         * High Accuracy Location Mode in Settings.Secure, disabling scan throttling in
+         * Settings.Global, and ensuring location permissions are granted.
+         *
+         * @param activity Host Activity context.
+         */
+        @JvmStatic
+        fun ensureWifiScanPrerequisites(activity: Activity) {
+            try {
+                Settings.Secure.putInt(
+                    activity.contentResolver,
+                    Settings.Secure.LOCATION_MODE,
+                    Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
+                )
+            } catch (_: Exception) {
+            }
+            try {
+                Settings.Global.putInt(activity.contentResolver, "wifi_scan_always_enabled", 1)
+                Settings.Global.putInt(activity.contentResolver, "wifi_scan_throttle_enabled", 0)
+            } catch (_: Exception) {
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= 23) {
+                    val fineGranted = activity.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    val coarseGranted = activity.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    if (!fineGranted || !coarseGranted) {
+                        activity.requestPermissions(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            ),
+                            1001
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     // UI Widgets
     private lateinit var cardWifiStatus: View
@@ -177,6 +225,7 @@ class WifiPaneController(
      * and performs initial Wi-Fi status queries.
      */
     fun attach() {
+        ensureWifiScanPrerequisites(activity)
         wifiManager = activity.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
         val inflater = LayoutInflater.from(activity)
@@ -190,12 +239,16 @@ class WifiPaneController(
         setupListeners()
         registerWifiReceiver()
         refreshWifiState()
+        if (wifiManager?.isWifiEnabled == true) {
+            triggerNetworkScan()
+        }
     }
 
     /**
      * Detaches the controller, unregisters broadcast listeners, and cleans up references.
      */
     fun detach() {
+        scanPollHandler.removeCallbacksAndMessages(null)
         unregisterWifiReceiver()
         rootView = null
     }
@@ -263,6 +316,7 @@ class WifiPaneController(
      * Initiates an asynchronous Wi-Fi scan and updates UI indicator.
      */
     private fun triggerNetworkScan() {
+        ensureWifiScanPrerequisites(activity)
         val manager = wifiManager ?: return
         if (!manager.isWifiEnabled) {
             Toast.makeText(activity, "Ative o Wi-Fi para buscar redes", Toast.LENGTH_SHORT).show()
@@ -274,6 +328,21 @@ class WifiPaneController(
             manager.startScan()
         } catch (e: Exception) {
             wifiScanningIndicator.visibility = View.GONE
+        }
+        scanPollHandler.removeCallbacksAndMessages(null)
+        for (delayMs in listOf(1200L, 2500L, 4500L)) {
+            scanPollHandler.postDelayed({
+                if (rootView != null && manager.isWifiEnabled) {
+                    val currentResults = try {
+                        manager.scanResults
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (!currentResults.isNullOrEmpty() || delayMs == 4500L) {
+                        updateScannedNetworks(currentResults)
+                    }
+                }
+            }, delayMs)
         }
     }
 
@@ -405,16 +474,34 @@ class WifiPaneController(
     private fun connectToOpenNetwork(ssid: String) {
         val manager = wifiManager ?: return
         try {
+            val quotedSsid = "\"$ssid\""
             val config = WifiConfiguration().apply {
-                SSID = "\"$ssid\""
+                SSID = quotedSsid
+                hiddenSSID = false
+                status = WifiConfiguration.Status.ENABLED
                 allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
             }
-            val netId = manager.addNetwork(config)
+            var netId = manager.addNetwork(config)
+            if (netId == -1) {
+                val existing = try {
+                    manager.configuredNetworks?.firstOrNull { it.SSID == quotedSsid || it.SSID == ssid }
+                } catch (_: Exception) {
+                    null
+                }
+                if (existing != null) {
+                    config.networkId = existing.networkId
+                    netId = manager.updateNetwork(config).let { if (it != -1) it else existing.networkId }
+                }
+            }
             if (netId != -1) {
                 manager.disconnect()
                 manager.enableNetwork(netId, true)
+                manager.saveConfiguration()
                 manager.reconnect()
                 Toast.makeText(activity, "Conectando a $ssid...", Toast.LENGTH_SHORT).show()
+                scheduleConnectionRefresh()
+            } else {
+                Toast.makeText(activity, "Falha ao adicionar rede $ssid", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Toast.makeText(activity, "Falha ao conectar a $ssid", Toast.LENGTH_SHORT).show()
@@ -441,7 +528,7 @@ class WifiPaneController(
             .setPositiveButton("Conectar") { _, _ ->
                 val password = editPassword.text.toString().trim()
                 if (password.isNotEmpty()) {
-                    connectToEncryptedNetwork(ssid, password)
+                    connectToEncryptedNetwork(ssid, password, capabilities)
                 } else {
                     Toast.makeText(activity, "Senha nao pode ser vazia", Toast.LENGTH_SHORT).show()
                 }
@@ -451,27 +538,77 @@ class WifiPaneController(
     }
 
     /**
-     * Connects to a WPA/WPA2 encrypted network with supplied password credentials.
+     * Connects to a WPA/WPA2/WEP encrypted network with supplied password credentials.
      *
      * @param ssid Target access point SSID.
      * @param password Wi-Fi password.
+     * @param capabilities Raw AP security capabilities string.
      */
-    private fun connectToEncryptedNetwork(ssid: String, password: String) {
+    private fun connectToEncryptedNetwork(ssid: String, password: String, capabilities: String = "WPA2") {
         val manager = wifiManager ?: return
         try {
+            val quotedSsid = "\"$ssid\""
+            val capsUpper = capabilities.uppercase()
             val config = WifiConfiguration().apply {
-                SSID = "\"$ssid\""
-                preSharedKey = "\"$password\""
+                SSID = quotedSsid
+                hiddenSSID = false
+                status = WifiConfiguration.Status.ENABLED
+                if (capsUpper.contains("WEP") && !capsUpper.contains("WPA")) {
+                    wepKeys[0] = "\"$password\""
+                    wepTxKeyIndex = 0
+                    allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
+                    allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP40)
+                    allowedGroupCiphers.set(WifiConfiguration.GroupCipher.WEP104)
+                } else {
+                    preSharedKey = "\"$password\""
+                    allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK)
+                    allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN)
+                    allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP)
+                    allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP)
+                    allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP)
+                    allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP)
+                    allowedProtocols.set(WifiConfiguration.Protocol.RSN)
+                    allowedProtocols.set(WifiConfiguration.Protocol.WPA)
+                }
             }
-            val netId = manager.addNetwork(config)
+            var netId = manager.addNetwork(config)
+            if (netId == -1) {
+                val existing = try {
+                    manager.configuredNetworks?.firstOrNull { it.SSID == quotedSsid || it.SSID == ssid }
+                } catch (_: Exception) {
+                    null
+                }
+                if (existing != null) {
+                    config.networkId = existing.networkId
+                    netId = manager.updateNetwork(config).let { if (it != -1) it else existing.networkId }
+                }
+            }
             if (netId != -1) {
                 manager.disconnect()
                 manager.enableNetwork(netId, true)
+                manager.saveConfiguration()
                 manager.reconnect()
                 Toast.makeText(activity, "Conectando a $ssid...", Toast.LENGTH_SHORT).show()
+                scheduleConnectionRefresh()
+            } else {
+                Toast.makeText(activity, "Falha ao adicionar rede $ssid", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Toast.makeText(activity, "Falha ao configurar rede $ssid", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Schedules delayed refreshes of the active Wi-Fi connection card after initiating a connection.
+     */
+    private fun scheduleConnectionRefresh() {
+        for (delayMs in listOf(2000L, 4500L, 7000L)) {
+            scanPollHandler.postDelayed({
+                val manager = wifiManager
+                if (rootView != null && manager != null && manager.isWifiEnabled) {
+                    updateActiveConnection(manager.connectionInfo)
+                }
+            }, delayMs)
         }
     }
 

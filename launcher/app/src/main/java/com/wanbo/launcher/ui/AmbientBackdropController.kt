@@ -195,6 +195,12 @@ class AmbientBackdropController(
         /** Dark Amber / Orange accent for Aptoide TV (0x4D, 0x26, 0x0D). */
         val COLOR_APTOIDE: Int = (0xFF shl 24) or (0x4D shl 16) or (0x26 shl 8) or 0x0D
 
+        /** Dark Cyan / Slate accent for WanboSettings and MaterialFiles (0x0E, 0x2F, 0x44). */
+        val COLOR_SYSTEM_UTILITY: Int = (0xFF shl 24) or (0x0E shl 16) or (0x2F shl 8) or 0x44
+
+        /** Dark Purple / Indigo accent for Jellyfin / Stremio (0x2E, 0x10, 0x4A). */
+        val COLOR_MEDIA_PURPLE: Int = (0xFF shl 24) or (0x2E shl 16) or (0x10 shl 8) or 0x4A
+
         /** Deep Obsidian neutral fallback for unmapped apps and idle state (0x08, 0x09, 0x0C). */
         val COLOR_DEFAULT: Int = (0xFF shl 24) or (0x08 shl 16) or (0x09 shl 8) or 0x0C
 
@@ -204,12 +210,22 @@ class AmbientBackdropController(
         /** Package identifier to ambient accent color mapping registry. */
         val COLOR_MAP: Map<String, Int> = mapOf(
             "com.google.android.youtube.tv" to COLOR_YOUTUBE,
+            "com.google.android.youtube" to COLOR_YOUTUBE,
+            "com.liskovsoft.smarttubetv.beta" to COLOR_YOUTUBE,
+            "com.liskovsoft.smarttubetv" to COLOR_YOUTUBE,
             "com.netflix.ninja" to COLOR_NETFLIX,
             "com.netflix.mediaclient" to COLOR_NETFLIX,
             "com.disney.disneyplus" to COLOR_DISNEY,
             "com.amazon.amazonvideo.livingroom" to COLOR_PRIME_VIDEO,
             "com.spotify.tv.android" to COLOR_SPOTIFY,
-            "cm.aptoidetv.pt" to COLOR_APTOIDE
+            "com.spotify.music" to COLOR_SPOTIFY,
+            "cm.aptoidetv.pt" to COLOR_APTOIDE,
+            "cm.aptoide.pt" to COLOR_APTOIDE,
+            "org.videolan.vlc" to COLOR_APTOIDE,
+            "com.wanbo.settings" to COLOR_SYSTEM_UTILITY,
+            "me.zhanghai.android.files" to COLOR_SYSTEM_UTILITY,
+            "org.jellyfin.androidtv" to COLOR_MEDIA_PURPLE,
+            "com.stremio.one" to COLOR_MEDIA_PURPLE
         )
 
         /**
