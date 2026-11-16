@@ -25,11 +25,7 @@
 
 ## Overview
 
-**English:**  
 **WanboLightOS** is an open-source custom firmware distribution and application suite built specifically for the **Wanbo T2 Max** smart projector (MediaTek MT5862 / MStar T9255B platform, `armeabi-v7a`, Android 9 Pie, API 28, ~843 MB usable RAM). Stock firmware suffers from heavy advertising launchers (Whale TV / Zeasn), background telemetry daemons, obsolete casting servers (`EShareServer`, `EAirPlay` / `iMirror`, `EDLNA`), and sluggish webviews that consume over 600 MB of RAM at idle. WanboLightOS replaces the entire user-facing shell with a fast, 100% GPU-accelerated Apple TV (`tvOS`) aesthetic while preserving every hardware driver (4-point Keystone, HDMI input, MediaTek optical flip HAL, Bluetooth remote auto-pairing, and DSP audio equalizer).
-
-**Portugues:**  
-O **WanboLightOS** e um sistema operacional customizado de codigo aberto desenvolvido especificamente para o projetor **Wanbo T2 Max** (plataforma MediaTek MT5862 / MStar T9255B, `armeabi-v7a`, Android 9 Pie, API 28, ~843 MB de RAM util). A ROM original de fabrica executa diversos servicos de telemetria, propagandas (Whale TV / Zeasn), servidores obsoletos em segundo plano (`EShareServer`, `EAirPlay` / `iMirror`, `EDLNA`) e interfaces pesadas que consomem mais de 600 MB de RAM em repouso. O WanboLightOS substitui a interface por um ecossistema minimalista inspirado no Apple TV (`tvOS`), com efeito de brilho dinamico no fundo (`Ambient Backdrop`), painel de configuracoes nativo em duas colunas (`WanboSettings`) e correcao automatica do espelhamento optico via HAL da MediaTek.
 
 ---
 
