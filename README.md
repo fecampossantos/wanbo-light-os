@@ -1,31 +1,35 @@
 # WanboLightOS
 
 > Lightweight, privacy-first custom operating system, tvOS-inspired Leanback launcher (`WanboLauncher`), and native Split-View settings suite (`WanboSettings`) engineered for the **Wanbo T2 Max Smart Projector** (`armeabi-v7a`, Android 9 Pie, API Level 28).
+>
+> **Project Notice:** This project was developed with heavy AI usage, encompassing AI-assisted firmware reverse engineering, automated pipeline scripting, and Android application development.
 
 ---
 
 ## Table of Contents
 
-1. [Overview (English & Portugues)](#overview)
+1. [Overview](#overview)
 2. [Architectural Highlights](#architectural-highlights)
 3. [What Is Pre-Installed vs. Removed](#what-is-pre-installed-vs-removed)
 4. [Core Guarantees](#core-guarantees)
-   - [1. Zero Telemetry & Privacy Preservation](#2-zero-telemetry--privacy-preservation)
-   - [2. ~350 MB RAM Savings & Low-RAM Tuning](#3-350-mb-ram-savings--low-ram-tuning)
-   - [3. 100% Hardware Preservation & Auto Optical Flip](#4-100-hardware-preservation--auto-optical-flip)
+   - [1. Zero Telemetry & Privacy Preservation](#1-zero-telemetry--privacy-preservation)
+   - [2. ~350 MB RAM Savings & Low-RAM Tuning](#2-350-mb-ram-savings--low-ram-tuning)
+   - [3. 100% Hardware Preservation & Auto Optical Flip](#3-100-hardware-preservation--auto-optical-flip)
+   - [4. Zero Emojis Policy](#4-zero-emojis-policy)
 5. [Hardware Specifications & Compatibility](#hardware-specifications--compatibility)
 6. [System Architecture Diagram](#system-architecture-diagram)
 7. [Repository Directory Map](#repository-directory-map)
-8. [Quick Start: Flashing via USB (Instalacao via Pendrive)](#quick-start-flashing-via-usb-instalacao-via-pendrive)
-9. [Quick Start: Building from Source (Compilacao e Montagem da ROM)](#quick-start-building-from-source-compilacao-e-montagem-da-rom)
+8. [Quick Start: Flashing via USB](#quick-start-flashing-via-usb)
+9. [Quick Start: Building from Source](#quick-start-building-from-source)
 10. [Automated Verification & Test Suites](#automated-verification--test-suites)
-11. [License](#license)
+11. [AI Usage & Attribution](#ai-usage--attribution)
+12. [License](#license)
 
 ---
 
 ## Overview
 
-**WanboLightOS** is an open-source custom firmware distribution and application suite built specifically for the **Wanbo T2 Max** smart projector (MediaTek MT5862 / MStar T9255B platform, `armeabi-v7a`, Android 9 Pie, API 28, ~843 MB usable RAM). Stock firmware suffers from heavy advertising launchers (Whale TV / Zeasn), background telemetry daemons, obsolete casting servers (`EShareServer`, `EAirPlay` / `iMirror`, `EDLNA`), and sluggish webviews that consume over 600 MB of RAM at idle. WanboLightOS replaces the entire user-facing shell with a fast, 100% GPU-accelerated Apple TV (`tvOS`) aesthetic while preserving every hardware driver (4-point Keystone, HDMI input, MediaTek optical flip HAL, Bluetooth remote auto-pairing, and DSP audio equalizer).
+**WanboLightOS** is an open-source custom firmware distribution and application suite built specifically for the **Wanbo T2 Max** smart projector (MediaTek MT5862 / MStar T9255B platform, `armeabi-v7a`, Android 9 Pie, API Level 28, ~843 MB usable RAM). Stock firmware suffers from heavy advertising launchers (Whale TV / Zeasn), background telemetry daemons, obsolete casting servers (`EShareServer`, `EAirPlay` / `iMirror`, `EDLNA`), and sluggish webviews that consume over 600 MB of RAM at idle. WanboLightOS replaces the entire user-facing shell with a fast, 100% GPU-accelerated Apple TV (`tvOS`) aesthetic while preserving every hardware driver (4-point Keystone, HDMI input, MediaTek optical flip HAL, Bluetooth remote auto-pairing, and DSP audio equalizer).
 
 ---
 
@@ -41,26 +45,26 @@
     - **Amazon Prime Video:** Dark Navy / Cyan (`#0A253A`)
     - **Spotify:** Dark Emerald Green (`#0D3820`)
     - **Aptoide TV / VLC:** Dark Amber / Orange (`#4D260D`)
-    - **Ajustes / Material Files:** Dark Cyan / Slate (`#0E2F44`)
+    - **Settings / Material Files:** Dark Cyan / Slate (`#0E2F44`)
     - **Jellyfin / Stremio:** Dark Indigo / Purple (`#2E104A`)
 - **Transparent Top Shelf Hero Clock:**
   - Minimalist `48sp` thin typography digital clock (`clockHero`) over a `100%` transparent top shelf (`bg_top_shelf.xml`) so the ambient glow flows seamlessly across the entire 1080p canvas.
 - **Dual-Row Floating Docks:**
-  - **Row 1 (`FAVORITOS`):** User-pinned favorite applications with `20dp` squircle cards, `+ Adicionar` card modal, and long-press (`OK`) unpin dialog.
-  - **Row 2 (`TODOS OS APLICATIVOS`):** Automatically discovers both Android TV Leanback (`CATEGORY_LEANBACK_LAUNCHER`) and standard sideloaded (`CATEGORY_LAUNCHER`) apps, sorted alphabetically with `1.08x` D-pad focus elevation (`150ms`).
+  - **Row 1 (Favorites):** User-pinned favorite applications with `20dp` squircle cards, `+ Add` card modal, and long-press (`OK`) unpin dialog.
+  - **Row 2 (All Applications):** Automatically discovers both Android TV Leanback (`CATEGORY_LEANBACK_LAUNCHER`) and standard sideloaded (`CATEGORY_LAUNCHER`) apps, sorted alphabetically with `1.08x` D-pad focus elevation (`150ms`).
 - **1-Click Hardware Top Bar (`56dp`):**
-  - Frosted-glass pill shortcuts for **HDMI** (`com.mediatek.tvinput`), **Projecao / Keystone** (`com.chijimlee.trapezoid`), and **Ajustes** (`com.wanbo.settings`), plus live Wi-Fi status and date/time indicator.
+  - Frosted-glass pill shortcuts for **HDMI** (`com.mediatek.tvinput`), **Projection / Keystone** (`com.chijimlee.trapezoid`), and **Settings** (`com.wanbo.settings`), plus live Wi-Fi status and date/time indicator.
 
 ### 2. Native tvOS Split-View Settings Suite (`WanboSettings`)
 - Replaces the legacy settings menu (`android:priority="100"` across all `android.settings.*` intent filters) with a dedicated 2-column Split-View interface (`32%` Left Category Rail + `68%` Right Content Pane) driven by a deterministic D-pad state machine (`DpadFocusEngine`).
 - **7 Built-in Configuration Panes:**
-  1. **Rede e Wi-Fi (`WifiPaneController`):** Automatically activates Android 9 High Accuracy Location Mode via `WRITE_SECURE_SETTINGS` and disables Wi-Fi scan throttling (`wifi_scan_throttle_enabled = 0`) so nearby 2.4 GHz / 5 GHz networks are discovered immediately, with signal bars (`dBm` to `%`) and WPA/WPA2/WEP/Open connection dialogs.
-  2. **Bluetooth (`BluetoothPaneController`):** Power toggle, real-time discovery scan, automatic peripheral classification (`Controle Remoto`, `Audio`, `Outros`), 1-click pairing (`createBond`), and unpairing (`removeBond`).
-  3. **Projecao e Imagem (`ProjectionPaneController`):** Direct reflection binding to MediaTek's Factory HAL (`MtkTvFApiDisplayWrapper.setMirrorMode(0..3)` and `MtkTvFApiSystem.setEmmcEnvVar("FLIP_MODE", ...)`) for all 4 optical mounting modes (*Frontal Mesa*, *Traseira Mesa*, *Frontal Teto*, *Traseira Teto*), 4-Point Keystone calibration shortcut, and Global Digital Zoom (`50%` to `100%`).
-  4. **Audio e Som (`AudioPaneController`):** Master volume progress control (`STREAM_MUSIC` with D-pad Left/Right support), audio output routing (*Alto-falante Interno*, *Bluetooth Audio*, *Saida Auxiliar P2*), and 4 acoustic profiles (*Padrao*, *Cinema*, *Musica*, *Voz*).
-  5. **Aplicativos (`AppsPaneController`):** Real-time internal eMMC storage bar and application manager (Force Stop, Clear Cache, Uninstall) protected by `PROTECTED_HAL_KEYWORDS` so critical hardware drivers can never be stopped or uninstalled.
-  6. **Sistema (`SystemPaneController`):** Projector network name, 24h/12h clock toggle, timezone and system date shortcut, UI language selector, inactivity sleep timer (`Desativado`, `15m`, `30m`, `60m`, `120m`), USB Debugging toggle, and ADB over Wi-Fi (`TCP port 5555`).
-  7. **Sobre o Projetor (`AboutPaneController`):** Hardware specifications and a live 3-second real-time memory telemetry dashboard reading `/proc/meminfo` for physical RAM and ZRAM swap compression.
+  1. **Network & Wi-Fi (`WifiPaneController`):** Automatically activates Android 9 High Accuracy Location Mode via `WRITE_SECURE_SETTINGS` and disables Wi-Fi scan throttling (`wifi_scan_throttle_enabled = 0`) so nearby 2.4 GHz / 5 GHz networks are discovered immediately, with signal bars (`dBm` to `%`) and WPA/WPA2/WEP/Open connection dialogs.
+  2. **Bluetooth (`BluetoothPaneController`):** Power toggle, real-time discovery scan, automatic peripheral classification (*Remote Control*, *Audio*, *Others*), 1-click pairing (`createBond`), and unpairing (`removeBond`).
+  3. **Projection & Display (`ProjectionPaneController`):** Direct reflection binding to MediaTek's Factory HAL (`MtkTvFApiDisplayWrapper.setMirrorMode(0..3)` and `MtkTvFApiSystem.setEmmcEnvVar("FLIP_MODE", ...)`) for all 4 optical mounting modes (*Front Desktop*, *Rear Desktop*, *Front Ceiling*, *Rear Ceiling*), 4-Point Keystone calibration shortcut, and Global Digital Zoom (`50%` to `100%`).
+  4. **Sound & Audio (`AudioPaneController`):** Master volume progress control (`STREAM_MUSIC` with D-pad Left/Right support), audio output routing (*Internal Speaker*, *Bluetooth Audio*, *3.5mm Aux Output*), and 4 acoustic profiles (*Standard*, *Cinema*, *Music*, *Voice*).
+  5. **Applications (`AppsPaneController`):** Real-time internal eMMC storage bar and application manager (Force Stop, Clear Cache, Uninstall) protected by `PROTECTED_HAL_KEYWORDS` so critical hardware drivers can never be stopped or uninstalled.
+  6. **System (`SystemPaneController`):** Projector network name, 24h/12h clock toggle, timezone and system date shortcut, UI language selector, inactivity sleep timer (*Disabled*, *15m*, *30m*, *60m*, *120m*), USB Debugging toggle, and ADB over Wi-Fi (`TCP port 5555`).
+  7. **About Projector (`AboutPaneController`):** Hardware specifications and a live 3-second real-time memory telemetry dashboard reading `/proc/meminfo` for physical RAM and ZRAM swap compression.
 
 ### 3. Automated OS Re-assembly Pipeline (`os-pipeline`)
 - End-to-end Python pipeline (`build_rom.py`, `unsparse_system.py`, `modify_system_image.py`, `assemble_firmware.py`, `verify_assembled_firmware.py`) for MStar / MediaTek USB upgrade binaries (`T9255B_350R00_CC.bin`).
@@ -114,6 +118,9 @@ WanboLightOS enforces `CRITICAL_HARDWARE_BLACKLIST` in `os-pipeline/build_rom.py
 - **Android 9 Direct Boot Hand-off (`FallbackHome`):** Preserves `/system/priv-app/TvSettingsPlus/TvSettingsPlus.apk` (`com.android.tv.settings`, hidden from the app drawer) because Android 9's `ActivityManagerService.systemReady()` requires its `directBootAware="true"` `.system.FallbackHome` activity (`priority="-1000"`) during Phase 1 boot to stop the `"android"` boot animation and hand off to `WanboLauncher` (`priority="0"`).
 - **Bluetooth Remote & DSP Equalizer:** Preserves `kxtj2server`, `com.mediatek.autopair`, `com.mediatek.hotkey.dispatcher`, and `com.mediatek.loadingequalizer`.
 
+### 4. Zero Emojis Policy
+In accordance with professional operating system standards, WanboLightOS enforces a strict Zero Emojis policy across all application layouts, settings strings, log messages, documentation, and build scripts.
+
 ---
 
 ## Hardware Specifications & Compatibility
@@ -139,7 +146,7 @@ flowchart TD
         MBOOT["MStar mboot.bin Bootloader"] --> KERNEL["Linux 4.9.118+ Kernel & SELinux"]
         KERNEL --> AMS["ActivityManagerService.systemReady()"]
         AMS --> FALLBACK["TvSettingsPlus .system.FallbackHome (directBootAware=true, priority=-1000)"]
-        FALLBACK -->|User 0 Unlocked -> stopBootAnimation()| LAUNCHER
+        FALLBACK -->|"User 0 Unlocked -> stopBootAnimation()"| LAUNCHER
     end
 
     subgraph UI["Phase 2: WanboLightOS User Experience"]
@@ -148,8 +155,8 @@ flowchart TD
         SETTINGS["WanboSettings (Split-View tvOS UI, priority=100)"]
         APPS["Bundled Apps: Aptoide TV + Material Files"]
         LAUNCHER --> AMBIENT
-        LAUNCHER -->|Top Bar: Ajustes| SETTINGS
-        LAUNCHER -->|App Docks| APPS
+        LAUNCHER -->|"Top Bar: Settings"| SETTINGS
+        LAUNCHER -->|"App Docks"| APPS
     end
 
     subgraph HAL["Phase 3: Preserved MediaTek & Wanbo Hardware HALs"]
@@ -159,12 +166,12 @@ flowchart TD
         BT_EQ["autopair + kxtj2server + loadingequalizer (BT Remote & DSP Audio)"]
     end
 
-    LAUNCHER -->|First-Boot Auto Optical Flip| MTK_FLIP
-    LAUNCHER -->|Top Bar: Projecao| KEYSTONE
-    LAUNCHER -->|Top Bar: HDMI| HDMI
-    SETTINGS -->|Projection Pane| MTK_FLIP
-    SETTINGS -->|Projection Pane| KEYSTONE
-    SETTINGS -->|Bluetooth & Audio Panes| BT_EQ
+    LAUNCHER -->|"First-Boot Auto Optical Flip"| MTK_FLIP
+    LAUNCHER -->|"Top Bar: Projection"| KEYSTONE
+    LAUNCHER -->|"Top Bar: HDMI"| HDMI
+    SETTINGS -->|"Projection Pane"| MTK_FLIP
+    SETTINGS -->|"Projection Pane"| KEYSTONE
+    SETTINGS -->|"Bluetooth & Audio Panes"| BT_EQ
 ```
 
 ---
@@ -232,23 +239,23 @@ wanbo-light-os/
 
 ---
 
-## Quick Start: Flashing via USB (Instalacao via Pendrive)
+## Quick Start: Flashing via USB
 
 For detailed troubleshooting, see the complete [USB Flashing Guide](docs/how-to-flash.md).
 
-### Summary (Portugues / English)
-1. **Format USB Drive (Formate o Pendrive):** Format a 4 GB - 32 GB USB drive as **FAT32** with an **MBR** partition table (do not use exFAT, NTFS, or GPT).
-2. **Copy Firmware Binary (Copie o Arquivo da ROM):** Copy `dist/USB_DRIVE/T9255B_350R00_CC.bin` directly to the **root directory** of the USB drive (`E:\T9255B_350R00_CC.bin`).
+### Step-by-Step USB Flashing Procedure
+1. **Format USB Drive:** Format a 4 GB - 32 GB USB drive as **FAT32** with an **MBR** partition table (do not use exFAT, NTFS, or GPT).
+2. **Copy Firmware Binary:** Copy `dist/USB_DRIVE/T9255B_350R00_CC.bin` directly to the **root directory** of the USB drive (`E:\T9255B_350R00_CC.bin`).
    - *Note:* The MStar `T9255B` bootloader specifically looks for `T9255B_350R00_CC.bin` on the root of the FAT32 drive.
-3. **Power Off (Desligue da Tomada):** Unplug the Wanbo T2 Max power cable completely and wait 10 seconds.
-4. **Insert USB (Insira o Pendrive):** Plug the USB drive into the rear USB port of the projector.
-5. **Trigger MStar Upgrade (Inicie a Atualizacao):** Press and **hold down** the physical Power button on top of the projector while plugging the power cable back in.
-6. **Wait for Progress Bar (Aguarde a Barra de Progresso):** Keep holding the Power button for **5 seconds** until the MStar upgrade screen appears, then release.
-7. **Automatic Reboot (Reinicializacao Automatica):** Wait **2-3 minutes** for flashing to reach 100%. The projector will automatically reboot into **WanboLightOS** and apply the optical mirror orientation (`FLIP_MODE=1`) automatically.
+3. **Power Off:** Unplug the Wanbo T2 Max power cable completely and wait 10 seconds.
+4. **Insert USB Drive:** Plug the USB drive into the rear USB port of the projector.
+5. **Trigger MStar Upgrade:** Press and **hold down** the physical Power button on top of the projector while plugging the power cable back in.
+6. **Wait for Progress Bar:** Keep holding the Power button for **5 seconds** until the MStar upgrade screen appears, then release.
+7. **Automatic Reboot:** Wait **2-3 minutes** for flashing to reach 100%. The projector will automatically reboot into **WanboLightOS** and apply the optical mirror orientation (`FLIP_MODE=1`) automatically.
 
 ---
 
-## Quick Start: Building from Source (Compilacao e Montagem da ROM)
+## Quick Start: Building from Source
 
 For detailed instructions on prerequisites (`Python 3`, `JDK 17`, `Android SDK`, `WSL` / Linux ext4 tools), see the [Build Guide](docs/how-to-build.md).
 
@@ -317,6 +324,16 @@ cd launcher && ./gradlew testReleaseUnitTest && cd ..
 # WanboSettings JUnit4 Suite
 cd settings && ./gradlew testReleaseUnitTest && cd ..
 ```
+
+---
+
+## AI Usage & Attribution
+
+This project was developed with heavy AI usage throughout every development phase:
+- **Firmware Reverse Engineering:** Analyzing MStar / MediaTek T9255B partition schemes, sparse ext4 chunk limits, and proprietary hardware HAL bindings (`MtkTvFApiDisplayWrapper`, `twoworlds.factory`).
+- **OS Pipeline Automation:** Authoring Python automation scripts (`build_rom.py`, `unsparse_system.py`, `modify_system_image.py`, `assemble_firmware.py`, `verify_assembled_firmware.py`) and MStar CRC calculation tools.
+- **Native Android Applications:** Architecting and implementing `WanboLauncher` and `WanboSettings` with GPU-accelerated tvOS shaders, D-pad deterministic state machines, and direct vendor HAL integration.
+- **Testing & Verification:** Comprehensive automated test suites across documentation, pipeline safety invariants, and Android unit tests.
 
 ---
 
