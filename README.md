@@ -10,10 +10,9 @@
 2. [Architectural Highlights](#architectural-highlights)
 3. [What Is Pre-Installed vs. Removed](#what-is-pre-installed-vs-removed)
 4. [Core Guarantees](#core-guarantees)
-   - [1. Zero Emojis Policy](#1-zero-emojis-policy)
-   - [2. Zero Telemetry & Privacy Preservation](#2-zero-telemetry--privacy-preservation)
-   - [3. ~350 MB RAM Savings & Low-RAM Tuning](#3-350-mb-ram-savings--low-ram-tuning)
-   - [4. 100% Hardware Preservation & Auto Optical Flip](#4-100-hardware-preservation--auto-optical-flip)
+   - [1. Zero Telemetry & Privacy Preservation](#2-zero-telemetry--privacy-preservation)
+   - [2. ~350 MB RAM Savings & Low-RAM Tuning](#3-350-mb-ram-savings--low-ram-tuning)
+   - [3. 100% Hardware Preservation & Auto Optical Flip](#4-100-hardware-preservation--auto-optical-flip)
 5. [Hardware Specifications & Compatibility](#hardware-specifications--compatibility)
 6. [System Architecture Diagram](#system-architecture-diagram)
 7. [Repository Directory Map](#repository-directory-map)
@@ -98,15 +97,12 @@ O **WanboLightOS** e um sistema operacional customizado de codigo aberto desenvo
 
 ## Core Guarantees
 
-### 1. Zero Emojis Policy
-WanboLightOS strictly enforces a **Zero Emojis** standard across all Kotlin/Java/Python source code, XML layouts, strings, shell scripts, commit messages, and documentation. Verified automatically on every test run by `test_docs.py`, `test_build_pipeline.py`, `ManifestIntentFilterTest.kt`, and `AssetValidationTest.kt`.
-
-### 2. Zero Telemetry & Privacy Preservation
+### 1. Zero Telemetry & Privacy Preservation
 - `WanboLauncher` omits `android.permission.INTERNET` entirely from its `AndroidManifest.xml` (verified by `ManifestSecurityTest.kt`).
 - It cannot open network sockets, transmit analytics, or fetch remote ads.
 - All Zeasn / Whale TV ad frameworks and background tracking services are permanently removed from the ext4 `/system` partition.
 
-### 3. ~350 MB RAM Savings & Low-RAM Tuning
+### 2. ~350 MB RAM Savings & Low-RAM Tuning
 The Wanbo T2 Max has 1 GB physical DDR RAM (~843 MB usable by Android). By stripping background ad daemons and applying `/system/build.prop` low-RAM optimizations (`os-pipeline/patches/build.prop.patch`), WanboLightOS recovers **~350 MB of RAM**:
 - `ro.config.low_ram=true`
 - Custom Low Memory Killer thresholds (`ro.lmk.low=1001`, `ro.lmk.medium=800`, `ro.lmk.critical=0`)
@@ -114,7 +110,7 @@ The Wanbo T2 Max has 1 GB physical DDR RAM (~843 MB usable by Android). By strip
 - Full GPU OpenGL hardware composition (`debug.sf.hw=1`, `video.accelerate.hw=1`, `ro.hwui.renderer=opengl`)
 - ZRAM idle compaction tuning (`ro.zram.mark_idle_delay_mins=60`)
 
-### 4. 100% Hardware Preservation & Auto Optical Flip
+### 3. 100% Hardware Preservation & Auto Optical Flip
 WanboLightOS enforces `CRITICAL_HARDWARE_BLACKLIST` in `os-pipeline/build_rom.py` so critical vendor HALs and boot services are never removed:
 - **Motorized & 4-Point Keystone Calibration:** Preserves `/vendor/bin/trapezoidServer`, `com.chijimlee.trapezoid`, and `com.chijimlee.tyylauncher` (which hosts the MediaTek `twoworlds.factory` JNI bridge).
 - **Automatic Optical Mirror Compensation (`FLIP_MODE=1`):** Flashing `mboot.bin` resets the eMMC `FLIP_MODE` environment variable to `0`, which leaves the Wanbo T2 Max's internal angled mirror horizontally flipped on stock ROMs. `HardwareController.ensureDefaultOpticalOrientation()` automatically invokes `MtkTvFApiDisplayWrapper.getInstance().setMirrorMode(1)` and `MtkTvFApiSystem.getInstance().setEmmcEnvVar("FLIP_MODE", "1")` on first boot.
