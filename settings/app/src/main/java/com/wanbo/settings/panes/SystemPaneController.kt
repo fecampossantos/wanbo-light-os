@@ -305,7 +305,9 @@ class SystemPaneController(
      */
     private fun openAndroidDateSettings() {
         try {
-            val intent = Intent(Settings.ACTION_DATE_SETTINGS)
+            val intent = Intent(Settings.ACTION_DATE_SETTINGS).apply {
+                setPackage("com.android.tv.settings")
+            }
             activity.startActivity(intent)
         } catch (_: Exception) {
             Toast.makeText(activity, "Nao foi possivel abrir ajustes de data do sistema", Toast.LENGTH_SHORT).show()

@@ -67,14 +67,12 @@ def apply_debloat(img_path: str):
         "/system/app/EDLNA",
         # /system/product/app bloatware
         "/system/product/app/MLocalMM2",
-        # /system/priv-app bloatware
+        # /system/priv-app bloatware (TvSettingsPlus preserved for DirectBoot FallbackHome)
         "/system/priv-app/Tubesky",
         "/system/priv-app/LiveTVSetupWizard",
         "/system/priv-app/GoogleContactsSyncAdapter",
         "/system/priv-app/CalendarProvider",
-        "/system/priv-app/ContactsProvider",
-        "/system/priv-app/TvSettingsPlus",
-        "/system/priv-app/com.android.tv.settings"
+        "/system/priv-app/ContactsProvider"
     ]
     print("[i] Applying debloat removals...")
     for target in apps_to_remove:

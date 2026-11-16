@@ -154,11 +154,9 @@ class TestPatches(unittest.TestCase):
         self.assertTrue(has_contacts_sync, "debloat-list.txt must include GoogleContactsSyncAdapter")
         self.assertTrue(has_calendar, "debloat-list.txt must include CalendarProvider")
 
-        # 5. Legacy Settings (Replaced by WanboSettings)
+        # 5. Legacy Settings preserved for DirectBoot FallbackHome
         has_tv_settings_plus = any("TvSettingsPlus" in line for line in lines)
-        has_tv_settings = any("com.android.tv.settings" in line for line in lines)
-        self.assertTrue(has_tv_settings_plus, "debloat-list.txt must include TvSettingsPlus")
-        self.assertTrue(has_tv_settings, "debloat-list.txt must include com.android.tv.settings")
+        self.assertFalse(has_tv_settings_plus, "debloat-list.txt must preserve TvSettingsPlus for DirectBoot FallbackHome")
 
         # 6. Obsolete EShare / AirPlay / DLNA daemons
         has_eshare = any("EShareServer" in line for line in lines)

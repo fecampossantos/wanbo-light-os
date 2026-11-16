@@ -168,7 +168,8 @@ class ManifestIntentFilterTest {
     }
 
     /**
-     * Verifies that the package name is com.wanbo.settings and sharedUserId is android.uid.system.
+     * Verifies that the package name is com.wanbo.settings and sharedUserId is omitted so
+     * PackageManagerService accepts the APK on MediaTek platform-signed ROMs.
      */
     @Test
     fun testPackageNameAndSharedUserId() {
@@ -177,7 +178,7 @@ class ManifestIntentFilterTest {
         val sharedUserId = getAttributeFlexible(root, "sharedUserId")
 
         assertEquals("Manifest package must match", EXPECTED_PACKAGE, packageName)
-        assertEquals("Manifest sharedUserId must be android.uid.system", EXPECTED_SHARED_USER_ID, sharedUserId)
+        assertEquals("Manifest sharedUserId must be empty to prevent signature rejection", "", sharedUserId)
     }
 
     /**

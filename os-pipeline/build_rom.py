@@ -43,6 +43,8 @@ CRITICAL_HARDWARE_BLACKLIST: List[str] = [
     "com.mediatek.loadingequalizer",
     "tyylauncher",
     "com.chijimlee.tyylauncher",
+    "tvsettingsplus",
+    "com.android.tv.settings",
     "kxtj2server",
     "hotkey.dispatcher",
 ]

@@ -207,7 +207,9 @@ class AppsRepository(
          */
         val EXCLUDED_PACKAGES: Set<String> = setOf(
             "com.mediatek.tvinput",
-            "com.android.tv"
+            "com.android.tv",
+            "com.android.tv.settings",
+            "com.chijimlee.tyylauncher"
         )
     }
 }

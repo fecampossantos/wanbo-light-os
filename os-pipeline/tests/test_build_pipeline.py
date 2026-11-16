@@ -238,11 +238,10 @@ class TestBuildPipeline(unittest.TestCase):
         self.assertIn("MemoryClean", target_names)
         self.assertIn("ZeasnService", target_names)
 
-    def test_debloat_targets_include_legacy_settings_and_cast_and_media(self) -> None:
+    def test_debloat_targets_include_legacy_cast_and_media_and_preserve_tvsettingsplus(self) -> None:
         """
-        Validates that TvSettingsPlus, com.android.tv.settings, EShareServer, EAirPlay,
-        EDLNA, and MLocalMM2 are successfully matched by debloat rules in both standard
-        and flat filesystem layouts.
+        Validates that EShareServer, EAirPlay, EDLNA, and MLocalMM2 are matched by debloat rules
+        while TvSettingsPlus (DirectBoot FallbackHome host) is preserved.
 
         @returns {None}
         """
@@ -251,7 +250,6 @@ class TestBuildPipeline(unittest.TestCase):
 
         # Standard layout targets
         (system_root / "system" / "priv-app" / "TvSettingsPlus").mkdir(parents=True, exist_ok=True)
-        (system_root / "system" / "priv-app" / "com.android.tv.settings").mkdir(parents=True, exist_ok=True)
         (system_root / "system" / "app" / "EShareServer").mkdir(parents=True, exist_ok=True)
         (system_root / "system" / "app" / "EAirPlay").mkdir(parents=True, exist_ok=True)
         (system_root / "system" / "app" / "EDLNA").mkdir(parents=True, exist_ok=True)
@@ -261,8 +259,7 @@ class TestBuildPipeline(unittest.TestCase):
         targets = find_matching_debloat_targets(system_root, patterns)
         target_names = [t.name for t in targets]
 
-        self.assertIn("TvSettingsPlus", target_names)
-        self.assertIn("com.android.tv.settings", target_names)
+        self.assertNotIn("TvSettingsPlus", target_names)
         self.assertIn("EShareServer", target_names)
         self.assertIn("EAirPlay", target_names)
         self.assertIn("EDLNA", target_names)
@@ -272,14 +269,12 @@ class TestBuildPipeline(unittest.TestCase):
         flat_root = self.temp_dir / "sys_legacy_flat"
         flat_root.mkdir(parents=True, exist_ok=True)
         (flat_root / "priv-app" / "TvSettingsPlus").mkdir(parents=True, exist_ok=True)
-        (flat_root / "priv-app" / "com.android.tv.settings").mkdir(parents=True, exist_ok=True)
         (flat_root / "app" / "EShareServer").mkdir(parents=True, exist_ok=True)
         (flat_root / "product" / "app" / "MLocalMM2").mkdir(parents=True, exist_ok=True)
 
         targets_flat = find_matching_debloat_targets(flat_root, patterns)
         target_names_flat = [t.name for t in targets_flat]
-        self.assertIn("TvSettingsPlus", target_names_flat)
-        self.assertIn("com.android.tv.settings", target_names_flat)
+        self.assertNotIn("TvSettingsPlus", target_names_flat)
         self.assertIn("EShareServer", target_names_flat)
         self.assertIn("MLocalMM2", target_names_flat)
 
@@ -358,8 +353,6 @@ class TestBuildPipeline(unittest.TestCase):
             "system/app/MemoryClean",
             "system/app/CleanCacheUtil",
             "system/app/PrintSpooler",
-            "system/priv-app/TvSettingsPlus",
-            "system/priv-app/com.android.tv.settings",
             "system/app/EShareServer",
             "system/app/EAirPlay",
             "system/app/EDLNA",

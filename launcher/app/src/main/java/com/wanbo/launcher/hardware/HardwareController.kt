@@ -249,6 +249,16 @@ class HardwareController(private val defaultContext: Context? = null) {
          */
         @JvmStatic
         fun launchSettings(context: Context): Boolean {
+            try {
+                val explicitWanboIntent = createExplicitIntent(
+                    "com.wanbo.settings",
+                    "com.wanbo.settings.SettingsActivity"
+                )
+                context.startActivity(explicitWanboIntent)
+                return true
+            } catch (_: Exception) {
+                // Fall through to PackageManager lookup or fallback
+            }
             val pm = context.packageManager
             val wanboIntent = pm?.getLeanbackLaunchIntentForPackage("com.wanbo.settings")
                 ?: pm?.getLaunchIntentForPackage("com.wanbo.settings")

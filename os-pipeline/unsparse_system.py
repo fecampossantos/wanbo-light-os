@@ -60,10 +60,11 @@ def main():
     """
     CLI entrypoint.
     """
-    stock_bin = "T2MAX-Z9-EN-20220616/T9255B_350R00_CC.stock.bin"
-    output_raw = "build/test_system_raw.img"
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    stock_bin = os.path.join(repo_root, "T2MAX-Z9-EN-20220616", "T9255B_350R00_CC.stock.bin")
+    output_raw = os.path.join(repo_root, "build", "test_system_raw.img")
     if not os.path.exists(stock_bin):
-        stock_bin = "T2MAX-Z9-EN-20220616/T9255B_350R00_CC.bin"
+        stock_bin = os.path.join(repo_root, "T2MAX-Z9-EN-20220616", "T9255B_350R00_CC.bin")
     unsparse_system_image(stock_bin, output_raw)
 
 if __name__ == "__main__":

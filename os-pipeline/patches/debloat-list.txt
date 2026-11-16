@@ -72,12 +72,12 @@ app/ContactsProvider
 priv-app/ContactsProvider
 
 # ==============================================================================
-# 5. Legacy Settings (Replaced by WanboSettings)
+# 5. Legacy Settings Note:
+# TvSettingsPlus (com.android.tv.settings) is preserved in /system/priv-app
+# because it provides .system.FallbackHome (directBootAware="true") required by
+# Android 9 ActivityManagerService.systemReady() to exit the boot animation.
+# WanboSettings overrides android.settings.* intents via priority="100".
 # ==============================================================================
-system/priv-app/TvSettingsPlus*
-priv-app/TvSettingsPlus*
-system/priv-app/com.android.tv.settings*
-priv-app/com.android.tv.settings*
 
 # ==============================================================================
 # 6. Obsolete EShare / AirPlay / DLNA daemons

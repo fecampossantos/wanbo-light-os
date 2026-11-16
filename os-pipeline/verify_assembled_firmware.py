@@ -12,7 +12,8 @@ def main():
 
     @returns {None}
     """
-    fn = "build/WanboLightOS_v1.0.bin"
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    fn = os.path.join(repo_root, "build", "WanboLightOS_v1.0.bin")
     total_sz = os.path.getsize(fn)
     print(f"[i] Checking firmware: {fn} ({total_sz:,} bytes)")
 
@@ -55,7 +56,7 @@ def main():
         0x1130e000, 0x1770e000, 0x1db0e000, 0x23f0e000, 0x2a30e000,
         0x3070e000, 0x36b0e000, 0x3cf0e000, 0x4330e000, 0x4970e000
     ]
-    verify_raw = "build/verify_assembled_raw.img"
+    verify_raw = os.path.join(repo_root, "build", "verify_assembled_raw.img")
     with open(fn, "rb") as fin, open(verify_raw, "wb") as fout:
         fout.truncate(384000 * 4096)
         for i, off in enumerate(offsets):
